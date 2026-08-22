@@ -15,6 +15,7 @@ use App\Support\Analyse\LigneAxe;
 use App\Support\Charge\Periode;
 use App\Support\ProjectHealth;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Date;
@@ -36,6 +37,45 @@ new #[Title('Tableau de bord')] class extends Component {
      * Nombre de projets affichés par page dans le tableau de suivi.
      */
     private const PAR_PAGE = 10;
+
+    /**
+     * Nombre d'échéances montrées avant dépliage.
+     */
+    private const ECHEANCES_VISIBLES = 5;
+
+    /**
+     * La liste des échéances est-elle dépliée au-delà des premières ?
+     */
+    public bool $echeancesDepliees = false;
+
+    /**
+     * L'horizon de quinze jours est-il levé, pour voir toutes les échéances ouvertes ?
+     */
+    public bool $echeancesSansHorizon = false;
+
+    public function deplierEcheances(): void
+    {
+        $this->echeancesDepliees = ! $this->echeancesDepliees;
+
+        $this->oublierEcheances();
+    }
+
+    public function basculerHorizonEcheances(): void
+    {
+        $this->echeancesSansHorizon = ! $this->echeancesSansHorizon;
+
+        // Les échéances que l'on découvre en levant l'horizon sont les plus
+        // lointaines, donc en fin de liste : sans déplier, le clic n'aurait
+        // aucun effet visible.
+        $this->echeancesDepliees = $this->echeancesSansHorizon;
+
+        $this->oublierEcheances();
+    }
+
+    private function oublierEcheances(): void
+    {
+        unset($this->echeances, $this->echeancesVisibles, $this->echeancesMasquees);
+    }
 
     /**
      * Portefeuille visible, classé du plus préoccupant au plus serein.
@@ -177,10 +217,35 @@ new #[Title('Tableau de bord')] class extends Component {
         return Milestone::query()
             ->whereIn('project_id', $this->portefeuille()->pluck('projet.id'))
             ->whereNotIn('statut', [ProgressStatus::Termine->value, ProgressStatus::Annule->value])
-            ->whereDate('date_prevue', '<=', now()->addDays(self::HORIZON_JOURS)->toDateString())
+            ->when(
+                ! $this->echeancesSansHorizon,
+                fn (Builder $q) => $q->whereDate('date_prevue', '<=', now()->addDays(self::HORIZON_JOURS)->toDateString()),
+            )
             ->with('project')
             ->orderBy('date_prevue')
             ->get();
+    }
+
+    /**
+     * Échéances effectivement montrées, selon que la liste est dépliée ou non.
+     *
+     * @return Collection<int, Milestone>
+     */
+    #[Computed]
+    public function echeancesVisibles(): Collection
+    {
+        return $this->echeancesDepliees
+            ? $this->echeances()
+            : $this->echeances()->take(self::ECHEANCES_VISIBLES);
+    }
+
+    /**
+     * Combien d'échéances le repli laisse de côté.
+     */
+    #[Computed]
+    public function echeancesMasquees(): int
+    {
+        return max(0, $this->echeances()->count() - self::ECHEANCES_VISIBLES);
     }
 
     /**
@@ -542,13 +607,28 @@ new #[Title('Tableau de bord')] class extends Component {
             @endif
 
             <section>
-                <flux:heading size="lg" class="mb-3">Prochaines échéances</flux:heading>
+                <flux:heading size="lg">Prochaines échéances</flux:heading>
+                <flux:subheading class="mb-3">
+                    {{ $echeancesSansHorizon
+                        ? 'Toutes les échéances ouvertes du portefeuille'
+                        : 'Jalons dépassés ou à échoir sous 15 jours' }}
+                </flux:subheading>
 
                 @if ($this->echeances()->isEmpty())
-                    <flux:callout icon="check-circle" color="green" heading="Aucune échéance dans les 15 jours" />
+                    <flux:callout
+                        icon="check-circle"
+                        color="green"
+                        :heading="$echeancesSansHorizon ? 'Aucune échéance ouverte' : 'Aucune échéance dans les 15 jours'"
+                    />
                 @else
-                    <ul class="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-700">
-                        @foreach ($this->echeances()->take(7) as $jalon)
+                    {{-- Dépliée, la liste peut compter des dizaines de lignes : on la
+                         borne en hauteur pour que le reste du tableau de bord reste atteignable. --}}
+                    <ul @class([
+                        'divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-700',
+                        'overflow-hidden' => ! $echeancesDepliees,
+                        'max-h-96 overflow-y-auto' => $echeancesDepliees,
+                    ])>
+                        @foreach ($this->echeancesVisibles() as $jalon)
                             @php $retard = $jalon->enRetard(); @endphp
 
                             <li class="flex items-start gap-3 bg-white px-3 py-2.5 dark:bg-zinc-900">
@@ -580,11 +660,24 @@ new #[Title('Tableau de bord')] class extends Component {
                         @endforeach
                     </ul>
 
-                    @if ($this->echeances()->count() > 7)
-                        <flux:text size="sm" class="mt-2">
-                            + {{ $this->echeances()->count() - 7 }} autre(s) échéance(s) sous 15 jours
-                        </flux:text>
-                    @endif
+                    <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            @if ($this->echeancesMasquees() > 0)
+                                <flux:button
+                                    wire:click="deplierEcheances"
+                                    size="xs"
+                                    variant="ghost"
+                                    :icon="$echeancesDepliees ? 'chevron-up' : 'chevron-down'"
+                                >
+                                    {{ $echeancesDepliees ? 'Voir moins' : 'Voir plus ('.$this->echeancesMasquees().')' }}
+                                </flux:button>
+                            @endif
+                        </div>
+
+                        <flux:button wire:click="basculerHorizonEcheances" size="xs" variant="ghost">
+                            {{ $echeancesSansHorizon ? 'Limiter à 15 jours' : 'Toutes les échéances' }}
+                        </flux:button>
+                    </div>
                 @endif
             </section>
 
