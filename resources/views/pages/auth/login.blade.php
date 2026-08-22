@@ -36,6 +36,10 @@
                 aria-label="Adresse e-mail"
             />
 
+            @error('email')
+                <flux:text color="red">{{ $message }}</flux:text>
+            @enderror
+
             <!-- Password -->
             <flux:input
                 name="password"
@@ -46,6 +50,10 @@
                 aria-label="Mot de passe"
                 viewable
             />
+
+            @error('password')
+                <flux:text color="red">{{ $message }}</flux:text>
+            @enderror
 
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <flux:checkbox name="remember" label="Rester connecté" :checked="old('remember')" />
