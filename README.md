@@ -151,6 +151,53 @@ php artisan serve --port=8000
 
 Puis ouvrir <http://localhost:8000>.
 
+### Avertissement `VCRUNTIME140.dll` au lancement de PHP
+
+```
+PHP Warning:  'C:\WINDOWS\SYSTEM32\VCRUNTIME140.dll' 14.28 is not compatible
+with this PHP build linked with 14.44 in Unknown on line 0
+```
+
+PHP 8.5 pour Windows est compilé avec la chaîne d'outils Visual Studio 2022 et se lie à la
+version **14.44** du runtime Visual C++. La `VCRUNTIME140.dll` installée dans
+`C:\WINDOWS\SYSTEM32` est en **14.28**, livrée par un redistribuable plus ancien
+(Visual Studio 2019). PHP démarre quand même, mais signale l'écart à chaque invocation —
+`php artisan serve`, `php artisan test`, chaque commande Composer — et une extension
+compilée avec le runtime récent peut échouer au chargement.
+
+Ce n'est pas un défaut de l'application : rien dans le dépôt ne corrige cet avertissement,
+il se règle sur le poste.
+
+**Correctif — installer le redistribuable Visual C++ à jour.** Il est cumulatif : la
+version 14.4x remplace la 14.28 et couvre toutes les applications déjà installées.
+
+1. Télécharger <https://aka.ms/vs/17/release/vc_redist.x64.exe> — l'architecture doit être
+   celle de PHP (`x64` pour un build 64 bits ; `php -i | findstr Architecture` le confirme).
+2. L'exécuter (droits administrateur requis), puis redémarrer le terminal.
+3. Vérifier :
+
+   ```powershell
+   (Get-Item C:\WINDOWS\SYSTEM32\VCRUNTIME140.dll).VersionInfo.ProductVersion
+   C:\php\php.exe -v
+   ```
+
+   La version doit être ≥ 14.44 et `php -v` ne doit plus rien afficher avant le numéro de
+   version de PHP.
+
+**Sans droits administrateur.** Windows cherche une DLL d'abord dans le dossier de
+l'exécutable, avant `System32`, et `VCRUNTIME140.dll` n'est pas une *KnownDLL*. Copier
+`VCRUNTIME140.dll` et `VCRUNTIME140_1.dll` en 14.44 à côté de `C:\php\php.exe` suffit donc
+à servir PHP seul, sans toucher au reste du poste. Les deux fichiers s'obtiennent depuis un
+poste disposant déjà du redistribuable à jour, ou en extrayant `vc_redist.x64.exe` :
+
+```powershell
+.\vc_redist.x64.exe /layout C:\temp\vcredist
+```
+
+Le dossier produit contient les paquets d'où extraire les deux DLL. Copier les deux : la
+14.44 dépend de `VCRUNTIME140_1.dll`, et n'en apporter qu'une remplace l'avertissement par
+une erreur de chargement.
+
 ### Réinitialiser la base avec le jeu de démonstration
 
 ```bash
@@ -217,5 +264,3 @@ resources/views/
 
 Le référentiel MPM vit dans `MpmReferentialSeeder` : il est **idempotent** et peut être
 rejoué après une évolution de la méthodologie.
-#   J u r a  
- 
