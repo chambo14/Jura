@@ -2,8 +2,9 @@
 
 use App\Models\Project;
 use App\Services\PortfolioAnalyticsService;
+use App\Services\PortfolioKpiService;
+use App\Support\Analyse\Kpi;
 use App\Support\Analyse\LigneAxe;
-use App\Support\Analyse\SyntheseAnalyse;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -41,10 +42,15 @@ new #[Title('Analyse du portefeuille')] class extends Component {
         return app(PortfolioAnalyticsService::class)->parAxe($this->axe, auth()->user());
     }
 
+    /**
+     * Bandeau d'indicateurs : délais tenus, qualité du pilotage, discipline de processus.
+     *
+     * @return Collection<int, Kpi>
+     */
     #[Computed]
-    public function synthese(): SyntheseAnalyse
+    public function kpis(): Collection
     {
-        return app(PortfolioAnalyticsService::class)->synthese(auth()->user());
+        return app(PortfolioKpiService::class)->pour(auth()->user());
     }
 
     /**
@@ -100,37 +106,17 @@ new #[Title('Analyse du portefeuille')] class extends Component {
     </flux:callout>
 
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <x-stat
-            label="Glissement moyen"
-            :value="number_format($this->synthese()->glissementMoyen, 0, ',', ' ').' j'"
-            :sub="'pire cas : '.number_format($this->synthese()->glissementMax, 0, ',', ' ').' j'"
-            icon="arrow-trending-up"
-            color="red"
-        />
-        <x-stat
-            label="Projets ayant glissé"
-            :value="$this->synthese()->projetsGlisses.' / '.$this->synthese()->projets"
-            :sub="number_format($this->synthese()->partProjetsGlisses(), 0, ',', ' ').' % du portefeuille'"
-            icon="calendar-days"
-            color="amber"
-        />
-        <x-stat
-            label="Écart d'avancement moyen"
-            :value="$this->synthese()->ecartAvancementMoyen === null
-                ? '—'
-                : sprintf('%+.1f pts', $this->synthese()->ecartAvancementMoyen)"
-            sub="déclaré vs attendu à date"
-            icon="chart-bar"
-            :color="($this->synthese()->ecartAvancementMoyen ?? 0) <= -App\Services\ProjectHealthService::SEUIL_ECART_ROUGE ? 'red' : 'amber'"
-        />
-        <x-stat
-            label="Jalons en retard"
-            :value="$this->synthese()->jalonsEnRetard"
-            :sub="'dont '.$this->synthese()->jalonsCritiquesEnRetard.' critique(s)'"
-            icon="flag"
-            color="red"
-        />
+        @foreach ($this->kpis() as $kpi)
+            <x-kpi :kpi="$kpi" wire:key="kpi-{{ $loop->index }}" />
+        @endforeach
     </div>
+
+    <flux:text size="sm" class="-mt-3">
+        Les valeurs décrivent l'état du moment, lu sur les projets. Les évolutions comparent les
+        flash reports de cette semaine à ceux de la précédente — seule trace hebdomadaire conservée,
+        l'état d'un projet étant écrasé à chaque mise à jour. Un indicateur sans historique porte la
+        mention « sans tendance » plutôt qu'une variation approchée.
+    </flux:text>
 
     @if ($this->lignes()->isEmpty())
         <div class="rounded-xl border border-dashed border-zinc-300 p-10 text-center dark:border-zinc-700">
@@ -200,7 +186,7 @@ new #[Title('Analyse du portefeuille')] class extends Component {
                                         'text-red-600 dark:text-red-400' => $ligne->couleurEcart() === 'red',
                                         'text-amber-600 dark:text-amber-400' => $ligne->couleurEcart() === 'amber',
                                         'text-green-600 dark:text-green-400' => $ligne->couleurEcart() === 'green',
-                                    ])>{{ sprintf('%+.1f', $ligne->ecartAvancementMoyen) }} pts</span>
+                                    ])>{{ $ligne->ecartAvancementMoyen >= 0 ? '+' : '' }}{{ number_format($ligne->ecartAvancementMoyen, 1, ',', ' ') }} pts</span>
                                 @endif
                             </td>
 
