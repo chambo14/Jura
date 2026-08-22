@@ -17,16 +17,16 @@ class ProjectHealthService
     /**
      * Écart toléré entre avancement déclaré et avancement théorique avant alerte.
      */
-    private const SEUIL_ECART_ORANGE = 5.0;
+    public const SEUIL_ECART_ORANGE = 5.0;
 
-    private const SEUIL_ECART_ROUGE = 15.0;
+    public const SEUIL_ECART_ROUGE = 15.0;
 
     /**
      * Glissement de date de fin à partir duquel le projet passe en alerte.
      */
-    private const SEUIL_GLISSEMENT_ORANGE = 15;
+    public const SEUIL_GLISSEMENT_ORANGE = 15;
 
-    private const SEUIL_GLISSEMENT_ROUGE = 45;
+    public const SEUIL_GLISSEMENT_ROUGE = 45;
 
     public function diagnostiquer(Project $project): ProjectHealth
     {

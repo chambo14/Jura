@@ -8,8 +8,10 @@ use App\Models\Milestone;
 use App\Models\Project;
 use App\Services\ChargeService;
 use App\Services\FlashReportBuilder;
+use App\Services\PortfolioAnalyticsService;
 use App\Services\ProjectHealthService;
 use App\Support\Charge\ChargeCollaborateur;
+use App\Support\Analyse\LigneAxe;
 use App\Support\Charge\Periode;
 use App\Support\ProjectHealth;
 use Carbon\CarbonInterface;
@@ -194,6 +196,26 @@ new #[Title('Tableau de bord')] class extends Component {
             ->pourPeriode(Periode::mois(Date::now()))
             ->filter(fn (ChargeCollaborateur $c) => $c->enSurcharge())
             ->values();
+    }
+
+    /**
+     * Regroupements qui concentrent le plus de glissement, sur les deux axes.
+     *
+     * Résumé volontairement court : trois lignes par axe, le détail complet
+     * étant l'affaire de l'écran d'analyse.
+     *
+     * @return array<string, Collection<int, LigneAxe>>
+     */
+    #[Computed]
+    public function derives(): array
+    {
+        $service = app(PortfolioAnalyticsService::class);
+        $utilisateur = auth()->user();
+
+        return [
+            'Par client' => $service->parAxe(PortfolioAnalyticsService::AXE_CLIENT, $utilisateur)->take(3),
+            'Par chef de projet' => $service->parAxe(PortfolioAnalyticsService::AXE_CHEF, $utilisateur)->take(3),
+        ];
     }
 }; ?>
 
@@ -598,6 +620,63 @@ new #[Title('Tableau de bord')] class extends Component {
                     </ul>
                 @endif
             </section>
+        </div>
+    </div>
+    {{-- Lecture décisionnelle : où la dérive se concentre. Détail sur l'écran d'analyse. --}}
+    <div>
+        <div class="mb-1 flex items-baseline justify-between gap-2">
+            <flux:heading size="lg">Analyse du portefeuille</flux:heading>
+            <flux:link :href="route('analyse')" class="text-sm" wire:navigate>Voir l'analyse</flux:link>
+        </div>
+        <flux:subheading class="mb-3">Glissement moyen de la date de fin, du regroupement le plus dérivant au moins dérivant</flux:subheading>
+
+        <div class="grid gap-6 lg:grid-cols-2">
+            @foreach ($this->derives() as $titre => $lignes)
+                <section wire:key="derive-{{ Str::slug($titre) }}">
+                    <flux:text size="sm" class="mb-2 font-medium">{{ $titre }}</flux:text>
+
+                    @if ($lignes->isEmpty())
+                        <flux:callout icon="check-circle" color="green" heading="Aucun glissement constaté" />
+                    @else
+                        @php $echelle = max(1, $lignes->first()->glissementMoyen); @endphp
+
+                        <ul class="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-700">
+                            @foreach ($lignes as $ligne)
+                                <li class="bg-white px-3 py-2.5 dark:bg-zinc-900">
+                                    <div class="flex items-center gap-3">
+                                        <span class="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-100">
+                                            {{ $ligne->libelle }}
+                                        </span>
+                                        <span @class([
+                                            'shrink-0 text-sm font-semibold tabular-nums',
+                                            'text-red-600 dark:text-red-400' => $ligne->couleurGlissement() === 'red',
+                                            'text-amber-600 dark:text-amber-400' => $ligne->couleurGlissement() === 'amber',
+                                            'text-green-600 dark:text-green-400' => $ligne->couleurGlissement() === 'green',
+                                        ])>{{ number_format($ligne->glissementMoyen, 0, ',', ' ') }} j</span>
+                                    </div>
+
+                                    <div class="mt-1.5 flex items-center gap-2">
+                                        <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                                            <div
+                                                @class([
+                                                    'h-full rounded-full',
+                                                    'bg-red-500' => $ligne->couleurGlissement() === 'red',
+                                                    'bg-amber-500' => $ligne->couleurGlissement() === 'amber',
+                                                    'bg-green-500' => $ligne->couleurGlissement() === 'green',
+                                                ])
+                                                style="width: {{ round($ligne->glissementMoyen / $echelle * 100, 1) }}%"
+                                            ></div>
+                                        </div>
+                                        <span class="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+                                            {{ $ligne->nombreProjets }} projet(s)@if ($ligne->effectifFaible()) *@endif
+                                        </span>
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </section>
+            @endforeach
         </div>
     </div>
 </div>

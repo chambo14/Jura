@@ -19,6 +19,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('plan-de-charge', 'pages::plan-de-charge.index')->name('plan-de-charge.index');
     Route::livewire('plan-de-charge/{user}', 'pages::plan-de-charge.show')->name('plan-de-charge.show');
 
+    Route::livewire('analyse', 'pages::analyse')->name('analyse');
+
     Route::livewire('comite', 'pages::comite')->name('comite');
 
     Route::livewire('referentiel', 'pages::referentiel')->name('referentiel');

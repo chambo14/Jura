@@ -27,6 +27,10 @@
                     <flux:sidebar.item icon="users" :href="route('plan-de-charge.index')" :current="request()->routeIs('plan-de-charge.*')" wire:navigate>
                         Plan de charge
                     </flux:sidebar.item>
+
+                    <flux:sidebar.item icon="chart-bar" :href="route('analyse')" :current="request()->routeIs('analyse')" wire:navigate>
+                        Analyse
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
 
                 <flux:sidebar.group heading="Comité" class="grid">
