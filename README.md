@@ -129,23 +129,76 @@ désactiver lui-même.
 
 ## Démarrer
 
-Cette machine n'a ni PHP, ni Composer, ni Node dans le `PATH`. Les chemins sont :
+### Prérequis
+
+| Outil | Version minimale | Pourquoi |
+|---|---|---|
+| PHP | **8.4.1** | Laravel 13 demande 8.3, mais les composants Symfony 8 figés dans `composer.lock` exigent 8.4.1 |
+| Composer | 2.x | |
+| Node / npm | **22.12** | requis par Vite 8 |
+
+Les extensions suivantes doivent être actives. Sur Windows elles sont commentées
+par défaut dans `php.ini` :
+
+```ini
+extension_dir = "C:\php\ext"
+extension=curl
+extension=fileinfo
+extension=mbstring
+extension=openssl
+extension=pdo_sqlite
+extension=sqlite3
+extension=zip
+```
+
+Sans `openssl`, Composer refuse tout téléchargement — il échoue sur
+`The openssl extension is required for SSL/TLS protection`. Sans `pdo_sqlite`
+ni `sqlite3`, la base ne s'ouvre pas.
+
+Vérifiez que c'est bien ce PHP qui répond : un autre PHP présent plus tôt dans
+le `PATH` est la cause la plus fréquente d'un `composer install` qui échoue sur
+la version.
+
+```powershell
+php -v
+php --ini    # « Loaded Configuration File » indique le php.ini réellement lu
+```
+
+### Chemins de la machine de développement
+
+Ces chemins sont propres à un poste et n'ont pas à être repris tels quels :
 
 | Outil | Chemin |
 |---|---|
-| PHP 8.5 | `C:\php\php.exe` |
+| PHP | `C:\php\php.exe` |
 | Composer | `C:\Users\sandrine.yapo\composer\composer.phar` |
-| Node 24 / npm | `C:\Users\sandrine.yapo\AppData\Local\nodejs-portable\node-v24.19.0-win-x64` |
+| Node / npm | `C:\Users\sandrine.yapo\AppData\Local\nodejs-portable\node-v24.19.0-win-x64` |
 
 Pour une session de travail, ajoutez-les au `PATH` :
 
-```bash
+```powershell
 $env:PATH = "C:\php;C:\Users\sandrine.yapo\AppData\Local\nodejs-portable\node-v24.19.0-win-x64;" + $env:PATH
 ```
 
-Lancer le serveur :
+### Installation
 
-```bash
+```powershell
+composer install
+copy .env.example .env
+php artisan key:generate
+php -r "touch('database/database.sqlite');"
+php artisan migrate --seed
+npm install
+npm run build
+```
+
+Le fichier SQLite n'est pas versionné : il faut le créer avant la première
+migration. `composer setup` enchaîne l'essentiel, mais ne crée ni la base ni
+le jeu de démonstration.
+
+### Lancer le serveur
+
+```powershell
 php artisan serve --port=8000
 ```
 
@@ -217,5 +270,6 @@ resources/views/
 
 Le référentiel MPM vit dans `MpmReferentialSeeder` : il est **idempotent** et peut être
 rejoué après une évolution de la méthodologie.
-#   J u r a  
+#   J u r a 
+ 
  

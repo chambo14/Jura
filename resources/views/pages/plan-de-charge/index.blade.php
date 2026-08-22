@@ -133,11 +133,13 @@ new #[Title('Plan de charge')] class extends Component {
 
     {{-- Comment la charge est calculée : la règle ne doit pas rester implicite --}}
     <flux:callout icon="information-circle" color="blue">
+        <flux:callout.text>
         La charge d'un collaborateur combine deux lectures : son <strong>affectation nominale</strong>,
         pondérée par le poids du rôle — un sponsor ne consomme pas un temps plein —, et les
         <strong>tâches qui lui sont confiées</strong>. Sur un projet donné, la plus élevée des deux est
         retenue, afin de ne pas compter deux fois le même travail tout en faisant apparaître
         les tâches déléguées à quelqu'un sans affectation.
+        </flux:callout.text>
     </flux:callout>
 
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
