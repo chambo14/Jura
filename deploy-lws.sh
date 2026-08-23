@@ -27,6 +27,14 @@ etape() { printf '\n\033[34m▸\033[0m %s\n' "$1"; }
 [ -f artisan ] || echec "Lancez le script depuis la racine du projet (le dossier qui contient « artisan »)."
 [ -d vendor ] || echec "Le dossier vendor/ est absent. Lancez « composer install --no-dev --optimize-autoloader » sur votre poste, puis renvoyez-le."
 [ -f public/build/manifest.json ] || echec "Les assets ne sont pas compilés. Lancez « npm run build » sur votre poste, puis renvoyez public/build/."
+case "$DOMAINE" in
+    https://*) SECURE=true ;;
+    http://*)  SECURE=false
+               printf '\n\033[33mAvertissement\033[0m Adresse en http : le cookie de session ne sera pas restreint à HTTPS.\n'
+               printf 'Activez le certificat SSL du sous-domaine, puis relancez avec https:// pour un site public.\n' ;;
+    *) echec "L'adresse doit commencer par http:// ou https:// — reçu : $DOMAINE" ;;
+esac
+
 [ -f .env ] && echec "Un fichier .env existe déjà : installation probablement déjà faite. Supprimez-le sciemment si vous voulez recommencer."
 
 etape "Écriture du .env de production"
@@ -52,7 +60,7 @@ SESSION_LIFETIME=120
 SESSION_ENCRYPT=false
 SESSION_PATH=/
 SESSION_DOMAIN=null
-SESSION_SECURE_COOKIE=true
+SESSION_SECURE_COOKIE=${SECURE}
 
 BROADCAST_CONNECTION=log
 FILESYSTEM_DISK=local
