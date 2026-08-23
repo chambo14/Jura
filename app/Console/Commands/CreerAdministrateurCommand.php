@@ -21,9 +21,10 @@ use function Laravel\Prompts\text;
  * d'entrée pour amorcer une mise en service sans passer par le jeu de
  * démonstration, dont tous les comptes partagent le mot de passe « password ».
  *
- * L'adresse est marquée vérifiée d'emblée : la vérification par e-mail est
- * exigée par toutes les pages, et un serveur fraîchement installé n'a
- * généralement pas encore de service d'envoi configuré.
+ * L'adresse est marquée vérifiée d'emblée. Le garde « verified » des routes
+ * est aujourd'hui inerte — le modèle User n'implémente pas MustVerifyEmail —
+ * mais le compte doit rester utilisable le jour où il le fera, alors qu'un
+ * serveur fraîchement installé n'a pas encore de service d'envoi configuré.
  */
 class CreerAdministrateurCommand extends Command
 {
@@ -84,8 +85,11 @@ class CreerAdministrateurCommand extends Command
             'poste' => $this->option('poste') ?: 'Direction des Projets',
             'profile_id' => $profil->id,
             'actif' => true,
-            'email_verified_at' => now(),
         ]);
+
+        // email_verified_at ne figure pas dans l'attribut #[Fillable] du modèle :
+        // passé à create(), il serait écarté sans le moindre avertissement.
+        $utilisateur->forceFill(['email_verified_at' => now()])->save();
 
         $this->components->info("Compte Direction créé pour {$utilisateur->email}.");
         $this->components->warn('Connectez-vous puis créez les autres comptes depuis l\'écran Utilisateurs.');
