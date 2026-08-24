@@ -77,6 +77,21 @@ jobs:
       - name: Installer lftp
         run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
 
+      - name: Identifier le certificat du serveur FTP
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+        run: |
+          # Le nom auquel le certificat est émis est une donnée publique, mais
+          # elle n'est lisible qu'en interrogeant le serveur. L'hébergement
+          # mutualisé présente en général le certificat de la machine, pas
+          # celui du domaine hébergé : c'est ce nom-là qu'il faut demander.
+          echo "::group::Certificat présenté par le serveur"
+          openssl s_client -starttls ftp -connect "$FTP_HOST:21" -servername "$FTP_HOST" \
+            </dev/null 2>/dev/null \
+            | openssl x509 -noout -subject -ext subjectAltName \
+            || echo "Certificat illisible : le serveur a refusé la négociation."
+          echo "::endgroup::"
+
       - name: Vérifier la connexion FTPS
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
@@ -85,9 +100,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Isolé dans sa propre étape pour que l'échec le plus probable — un
-          # certificat LWS émis à un autre nom, ou un secret erroné — se lise
-          # d'un coup d'œil dans le journal, avant tout transfert.
+          # Le test doit provoquer une vraie entrée-sortie réseau. « pwd » n'en
+          # provoque aucune : lftp y répond localement, sans jamais ouvrir la
+          # connexion, et l'étape réussissait donc sans rien avoir vérifié.
           lftp -c "
             set ftp:ssl-force true;
             set ftp:ssl-protect-data true;
@@ -95,8 +110,8 @@ jobs:
             set net:max-retries 2;
             set net:timeout 30;
             open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_HOST';
-            pwd;
-          "
+            cls -1 .;
+          " > /dev/null
 
       - name: Localiser le projet sur le serveur
         env:
