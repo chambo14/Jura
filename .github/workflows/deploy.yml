@@ -36,14 +36,6 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
-env:
-  # Emplacements possibles du projet vus depuis le compte FTP, essayés dans
-  # l'ordre. Un compte FTP cPanel peut être cloisonné au dossier du projet
-  # (il atterrit alors directement dedans) ou ouvert sur toute l'arborescence.
-  # Plutôt que de parier, l'étape « Localiser le projet » cherche lequel
-  # contient artisan.
-  DOSSIERS_CANDIDATS: "/public_html/gestproject . /gestproject"
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -114,25 +106,37 @@ jobs:
         run: |
           set -euo pipefail
 
-          # On reconnaît le projet à son fichier artisan. Sans cette recherche,
-          # un chemin erroné ne provoquerait aucune erreur : le miroir créerait
-          # simplement une arborescence parallèle que le site ne sert pas.
-          for candidat in $DOSSIERS_CANDIDATS; do
-            if lftp -c "
-                 set ftp:ssl-force true;
-                 set ssl:verify-certificate true;
-                 open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_HOST';
-                 cls -1 '$candidat/artisan';
-               " >/dev/null 2>&1; then
-              echo "Projet trouvé dans : $candidat"
-              echo "DOSSIER_DISTANT=$candidat" >> "$GITHUB_ENV"
-              exit 0
-            fi
-            echo "Pas de projet dans : $candidat"
-          done
+          reglages="
+            set ftp:ssl-force true;
+            set ssl:verify-certificate true;
+            set net:max-retries 2;
+            set net:timeout 30;
+            open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_HOST';
+          "
 
-          echo "::error::Aucun dossier candidat ne contient artisan. Vérifiez le répertoire du compte FTP dans cPanel, puis ajustez DOSSIERS_CANDIDATS."
-          exit 1
+          # Un compte FTP cPanel est cloisonné dans son répertoire : la racine
+          # qu'il voit n'est pas celle du serveur, et son emplacement exact
+          # n'est pas connaissable depuis ici. On journalise donc ce qu'il voit
+          # réellement, puis on cherche artisan plutôt que de parier.
+          echo "::group::Arborescence visible par le compte FTP"
+          lftp -c "$reglages pwd; cls -1 .;" || true
+          echo "::endgroup::"
+
+          echo "Recherche de artisan (profondeur 4)…"
+          trouves=$(lftp -c "$reglages find -d 4 .;" 2>/dev/null | grep -E '(^|/)artisan$' || true)
+
+          if [ -z "$trouves" ]; then
+            echo "::error::artisan est introuvable dans l'arborescence visible par ce compte FTP. Il est probablement cloisonné hors du projet : dans cPanel, ouvrez Comptes FTP et donnez-lui pour répertoire /home/<compte>/public_html/gestproject."
+            exit 1
+          fi
+
+          # Le chemin le plus court est le projet lui-même ; les plus longs
+          # seraient des copies enfouies, à ignorer.
+          chemin=$(echo "$trouves" | awk '{ print length, $0 }' | sort -n | head -1 | cut -d' ' -f2-)
+          dossier=$(dirname "$chemin")
+
+          echo "Projet trouvé dans : $dossier"
+          echo "DOSSIER_DISTANT=$dossier" >> "$GITHUB_ENV"
 
       - name: Déposer par FTPS
         env:
