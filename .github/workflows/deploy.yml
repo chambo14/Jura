@@ -13,10 +13,19 @@
 name: deploy
 
 on:
-  push:
-    branches:
-      - main
-  # Permet aussi de relancer une mise en ligne à la main depuis l'onglet Actions.
+  # Déclenchement manuel uniquement, depuis l'onglet Actions.
+  #
+  # Le dépôt réécrit 226 fichiers, dont 180 exécutables : pendant la minute
+  # que dure le transfert, une page chargée au mauvais moment peut échouer.
+  # Tant que des personnes testent l'application en ligne, c'est à un humain
+  # de choisir le moment — pas à un push.
+  #
+  # Une fois la chaîne éprouvée et les tests terminés, décommenter ce bloc
+  # pour que toute fusion dans main parte en ligne automatiquement :
+  #
+  # push:
+  #   branches:
+  #     - main
   workflow_dispatch:
 
 permissions:
