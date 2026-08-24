@@ -150,7 +150,7 @@ class PortfolioKpiService
     private function agregats(User $user, CarbonInterface $lundi): array
     {
         $rapports = FlashReport::query()
-            ->whereHas('project', fn ($q) => $q->visibleTo($user))
+            ->whereIn('project_id', Project::query()->visibleTo($user)->select('id'))
             ->pourSemaine($lundi)
             ->get();
 

@@ -116,7 +116,7 @@ class PortfolioAnalyticsService
     {
         $libelle = $axe === self::AXE_CHEF
             ? $projet->chefProjet?->name
-            : $projet->client?->nom;
+            : $projet->client->nom;
 
         return $libelle ?? self::SANS_RATTACHEMENT;
     }
@@ -125,7 +125,7 @@ class PortfolioAnalyticsService
     {
         return $axe === self::AXE_CHEF
             ? $projet->chefProjet?->poste
-            : $projet->client?->pays;
+            : $projet->client->pays;
     }
 
     /**
