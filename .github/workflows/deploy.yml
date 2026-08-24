@@ -28,8 +28,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Dossier du projet vu depuis le compte FTP, tel qu'il apparaît dans FileZilla.
-  DOSSIER_DISTANT: /public_html/gestproject
+  # Emplacements possibles du projet vus depuis le compte FTP, essayés dans
+  # l'ordre. Un compte FTP cPanel peut être cloisonné au dossier du projet
+  # (il atterrit alors directement dedans) ou ouvert sur toute l'arborescence.
+  # Plutôt que de parier, l'étape « Localiser le projet » cherche lequel
+  # contient artisan.
+  DOSSIERS_CANDIDATS: "/public_html/gestproject . /gestproject"
 
 jobs:
   deploy:
@@ -71,6 +75,55 @@ jobs:
 
       - name: Installer lftp
         run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Vérifier la connexion FTPS
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          # Isolé dans sa propre étape pour que l'échec le plus probable — un
+          # certificat LWS émis à un autre nom, ou un secret erroné — se lise
+          # d'un coup d'œil dans le journal, avant tout transfert.
+          lftp -c "
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data true;
+            set ssl:verify-certificate true;
+            set net:max-retries 2;
+            set net:timeout 30;
+            open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_HOST';
+            pwd;
+          "
+
+      - name: Localiser le projet sur le serveur
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          # On reconnaît le projet à son fichier artisan. Sans cette recherche,
+          # un chemin erroné ne provoquerait aucune erreur : le miroir créerait
+          # simplement une arborescence parallèle que le site ne sert pas.
+          for candidat in $DOSSIERS_CANDIDATS; do
+            if lftp -c "
+                 set ftp:ssl-force true;
+                 set ssl:verify-certificate true;
+                 open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_HOST';
+                 cls -1 '$candidat/artisan';
+               " >/dev/null 2>&1; then
+              echo "Projet trouvé dans : $candidat"
+              echo "DOSSIER_DISTANT=$candidat" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            echo "Pas de projet dans : $candidat"
+          done
+
+          echo "::error::Aucun dossier candidat ne contient artisan. Vérifiez le répertoire du compte FTP dans cPanel, puis ajustez DOSSIERS_CANDIDATS."
+          exit 1
 
       - name: Déposer par FTPS
         env:
