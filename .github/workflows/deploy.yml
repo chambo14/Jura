@@ -1,0 +1,126 @@
+# Met en ligne l'application sur l'hébergement mutualisé LWS.
+#
+# L'hébergement n'offre ni SSH ni Composer ni Node : on ne peut y déposer que
+# des fichiers déjà prêts. Ce workflow reconstitue donc ici ce qu'une machine
+# de développement produirait — les dépendances PHP et les assets compilés —
+# puis dépose l'ensemble par FTPS.
+#
+# Ce qu'il ne fait PAS, volontairement :
+#   - il ne supprime jamais de fichier sur le serveur (pas de --delete) ;
+#   - il n'écrase ni .env, ni la base SQLite, ni les journaux (voir EXCLUSIONS) ;
+#   - il n'exécute aucune migration : modifier la structure de la base demande
+#     une ligne de commande, que cet hébergement n'a pas. Voir README.
+name: deploy
+
+on:
+  push:
+    branches:
+      - main
+  # Permet aussi de relancer une mise en ligne à la main depuis l'onglet Actions.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Deux dépôts FTP simultanés se marcheraient dessus : on sérialise.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  # Dossier du projet vu depuis le compte FTP, tel qu'il apparaît dans FileZilla.
+  DOSSIER_DISTANT: /public_html/gestproject
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # La version doit correspondre à celle du serveur : composer.lock épingle
+      # des composants Symfony qui exigent PHP >= 8.4.1.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      # --no-dev écarte Pint, PHPStan et PHPUnit : inutiles en production, et
+      # autant de fichiers en moins à transférer.
+      - name: Installer les dépendances PHP
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Compiler les assets
+        run: |
+          npm ci
+          npm run build
+
+      # Sans ce garde-fou, une compilation muette déposerait un site sans styles.
+      - name: Vérifier que les assets existent
+        run: test -s public/build/manifest.json
+
+      - name: Installer lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Déposer par FTPS
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          # EXCLUSIONS — chaque ligne protège quelque chose qui n'existe que sur
+          # le serveur et que le dépôt ne doit jamais recouvrir.
+          COMMUNES="
+            --exclude '^\.git'
+            --exclude '^\.env'
+            --exclude '^node_modules/'
+            --exclude '^tests/'
+            --exclude '^database/[^/]*\.sqlite'
+            --exclude '^storage/logs/'
+            --exclude '^storage/app/'
+            --exclude '^storage/framework/(cache|sessions|views)/'
+            --exclude '^bootstrap/cache/'
+          "
+
+          # Deux passes, parce que les deux moitiés ne se comparent pas pareil.
+          #
+          # 1. Le code applicatif : quelques centaines de kilo-octets. Les dates
+          #    sont toujours celles du checkout, donc tout repart à chaque fois —
+          #    c'est voulu, c'est la seule comparaison qui ne rate jamais une
+          #    modification, et le volume est négligeable.
+          #
+          # 2. vendor/ : dix mille fichiers pour cinquante méga-octets. Comparés
+          #    par date ils repartiraient intégralement à chaque mise en ligne,
+          #    pour vingt minutes de transfert inutile. On compare donc leur
+          #    taille : Composer réécrit ces fichiers à l'identique tant que
+          #    composer.lock ne bouge pas, et les régénère quand il bouge.
+          #
+          # Aucune des deux passes n'utilise --delete : rien n'est jamais
+          # supprimé sur le serveur.
+          lftp -c "
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data true;
+            set ssl:verify-certificate true;
+            set net:max-retries 3;
+            set net:timeout 30;
+            open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_HOST';
+
+            mirror --reverse --parallel=4 --verbose=1 \
+              $COMMUNES --exclude '^vendor/' \
+              ./ '$DOSSIER_DISTANT'/;
+
+            mirror --reverse --parallel=4 --verbose=1 --size-only \
+              ./vendor/ '$DOSSIER_DISTANT'/vendor/;
+          "
