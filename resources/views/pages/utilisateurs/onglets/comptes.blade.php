@@ -142,7 +142,11 @@ new class extends Component {
             // Mot de passe provisoire : communiqué au collaborateur, à changer ensuite.
             $provisoire = Str::password(14);
 
-            User::create([...$attributs, 'password' => $provisoire, 'email_verified_at' => now()]);
+            $utilisateur = User::create([...$attributs, 'password' => $provisoire]);
+
+            // email_verified_at ne figure pas dans l'attribut #[Fillable] du modèle :
+            // passé à create(), il serait écarté sans le moindre avertissement.
+            $utilisateur->forceFill(['email_verified_at' => now()])->save();
 
             $this->motDePasseProvisoire = $provisoire;
 
