@@ -3,14 +3,20 @@
 use App\Models\Profile;
 use App\Models\User;
 use Flux\Flux;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
+    use WithPagination;
+
+    private const PAR_PAGE = 10;
+
     #[Url(as: 'q', except: '')]
     public string $recherche = '';
 
@@ -46,10 +52,13 @@ new class extends Component {
     }
 
     /**
-     * @return Collection<int, User>
+     * Dix comptes par page : au-delà, la liste ne se lit plus d'un écran et
+     * l'administration se fait au défilement plutôt qu'au filtre.
+     *
+     * @return LengthAwarePaginator<int, User>
      */
     #[Computed]
-    public function utilisateurs(): Collection
+    public function utilisateurs(): LengthAwarePaginator
     {
         return User::query()
             ->when($this->recherche !== '', function ($query) {
@@ -61,7 +70,18 @@ new class extends Component {
             ->with('profile')
             ->withCount('projetsPilotes')
             ->orderBy('name')
-            ->get();
+            ->paginate(self::PAR_PAGE);
+    }
+
+    /**
+     * Revenir à la première page dès que le périmètre change : rester en
+     * page 4 d'une liste qui vient d'être filtrée n'affiche rien.
+     */
+    public function updated(string $propriete): void
+    {
+        if (in_array($propriete, ['recherche', 'filtreProfil', 'inclureInactifs'], true)) {
+            $this->resetPage();
+        }
     }
 
     /**
@@ -239,8 +259,10 @@ new class extends Component {
     </div>
 
     {{-- Liste --}}
-    <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
-        <table class="w-full text-sm">
+    <div class="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
+        <x-chargement texte="Mise à jour de la liste…" />
+
+        <table wire:loading.class="opacity-40" class="w-full text-sm transition-opacity">
             <thead class="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
                 <tr>
                     <th class="px-4 py-2 text-start font-medium">Collaborateur</th>
@@ -328,6 +350,14 @@ new class extends Component {
             </tbody>
         </table>
     </div>
+
+    {{-- Pagination : masquée tant qu'il n'y a qu'une page, pour ne pas
+         encombrer une liste qui tient à l'écran. --}}
+    @if ($this->utilisateurs()->hasPages())
+        <div>
+            <flux:pagination :paginator="$this->utilisateurs()" />
+        </div>
+    @endif
 
     {{-- Création / modification --}}
     <flux:modal name="utilisateur" class="md:w-[30rem]">

@@ -157,7 +157,10 @@ new #[Title('Projets')] class extends Component {
     </div>
 
     {{-- Cartes projets --}}
-    <div class="grid gap-4 lg:grid-cols-2">
+    <div class="relative">
+        <x-chargement texte="Filtrage des projets…" class="rounded-xl" />
+
+        <div wire:loading.class="opacity-40" class="grid gap-4 transition-opacity lg:grid-cols-2">
         @forelse ($this->lignes() as $ligne)
             @php
                 $projet = $ligne['projet'];
@@ -229,5 +232,6 @@ new #[Title('Projets')] class extends Component {
                 </flux:button>
             </div>
         @endforelse
+        </div>
     </div>
 </div>

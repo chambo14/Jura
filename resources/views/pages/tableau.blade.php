@@ -722,6 +722,14 @@ new class extends Component {
     </div>
 
     {{-- Bandes : un seul bloc, ou une bande par équipe métier --}}
+    <div class="relative">
+        <x-chargement
+            cible="filtreProjet,filtreEquipe,filtreAssignee,filtrePriorite,recherche,seulementMoi,grouperParEquipe,afficherAnnulees"
+            texte="Recomposition du tableau…"
+            class="rounded-xl"
+        />
+
+        <div wire:loading.class="opacity-40" class="flex flex-col gap-6 transition-opacity">
     @forelse ($this->bandes() as $equipe => $cartesBande)
         <div wire:key="bande-{{ $equipe ?: 'tout' }}" class="flex flex-col gap-3">
             @if ($equipe !== '')
@@ -838,6 +846,8 @@ new class extends Component {
             <flux:text>Aucune carte ne correspond à ces critères.</flux:text>
         </div>
     @endforelse
+        </div>
+    </div>
 
     {{-- Panneau de la carte : le détail, la discussion et les pièces jointes --}}
     <flux:modal name="carte" class="md:w-[44rem]">

@@ -188,7 +188,9 @@ new class extends Component {
         <flux:input wire:model.live.debounce.300ms="filtre" placeholder="Rechercher un fichier…" icon="magnifying-glass" class="max-w-xs" />
     </div>
 
-    <div class="rounded-xl border border-zinc-200 px-4 dark:border-zinc-700">
+    <div class="relative rounded-xl border border-zinc-200 px-4 dark:border-zinc-700">
+        <x-chargement cible="filtre" texte="Recherche…" class="rounded-xl" />
+
         <x-attachment-list
             :attachments="$this->pieces()"
             :peut-retirer="$this->peutContribuer()"
