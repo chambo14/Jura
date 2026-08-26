@@ -309,6 +309,68 @@ peut faire, et que l'hébergement mutualisé n'offre pas :
    l'ancienne version — au point qu'une route ajoutée par la mise à jour n'existe pas
    encore pour lui.
 
+### Préparer l'archive
+
+L'hébergement reçoit le projet sous forme d'archive dépliée depuis le gestionnaire de
+fichiers. Trois écueils, rencontrés en conditions réelles, méritent d'être connus avant
+de la fabriquer.
+
+**Ne pas embarquer `vendor/` quand `composer.lock` n'a pas changé.** Le serveur porte
+déjà les bonnes dépendances : les renvoyer n'apporte rien, alourdit l'archive de 25 Mo
+et, surtout, expose neuf mille fichiers PHP tiers à l'antivirus de l'hébergeur — dont les
+heuristiques « téléchargeur PHP » se déclenchent sur des bibliothèques parfaitement
+légitimes, et le dépôt est alors refusé en bloc. Vérifier d'un coup d'œil :
+
+```powershell
+git diff origin/main --name-only -- composer.json composer.lock   # vide = vendor inutile
+```
+
+**Fabriquer un `.tar.gz`, pas un `.zip`.** `Compress-Archive` de Windows PowerShell 5.1
+écrit les chemins des sous-dossiers avec des antislashs (`app\Models\Project.php`), ce
+que le format ZIP interdit. Déplié sur un serveur Linux, un tel fichier ne recrée pas
+l'arborescence : il pose des milliers de fichiers dont le *nom* contient des antislashs.
+Le format tar n'a pas cette ambiguïté.
+
+**Sauvegarder la base par copie, jamais par renommage.** Un *Rename* laisse le projet
+sans `database/database.sqlite` : le site tombe, et la mise à jour échoue au premier
+accès à la base.
+
+Sur le poste de développement, une fois `composer install --no-dev --optimize-autoloader`
+et `npm run build` passés :
+
+```powershell
+$src = "C:\chemin\vers\Jura"
+$tmp = "$env:TEMP\mpm-mise-en-ligne"
+$tgz = "$env:USERPROFILE\Desktop\mpm.tar.gz"
+
+if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+Copy-Item $src $tmp -Recurse
+
+# Ce qui n'a rien à faire sur le serveur : sources de travail, fichiers du serveur
+# lui-même (.env, base, storage), et caches locaux qui casseraient la production.
+Remove-Item "$tmp\.git","$tmp\node_modules","$tmp\tests","$tmp\storage" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "$tmp\.env" -Force -ErrorAction SilentlyContinue
+Remove-Item "$tmp\database\*.sqlite*" -Force -ErrorAction SilentlyContinue
+Remove-Item "$tmp\bootstrap\cache\*.php" -Force -ErrorAction SilentlyContinue
+Remove-Item "$tmp\vendor" -Recurse -Force -ErrorAction SilentlyContinue   # si composer.lock n'a pas bougé
+
+if (Test-Path $tgz) { Remove-Item $tgz -Force }
+tar.exe -czf $tgz -C $tmp .
+```
+
+Puis contrôler l'archive avant de la déposer — c'est ce contrôle qui a rattrapé les
+antislashs :
+
+```powershell
+$noms = (tar.exe -tzf $tgz) -replace '^\./',''
+"public/mise-a-jour.php","public/build/manifest.json","artisan" |
+    ForEach-Object { "{0,-32} {1}" -f $_, $(if ($noms -contains $_) { "OK" } else { "MANQUANT" }) }
+```
+
+Sur le serveur : sauvegarder la base (**Copy**), déplier l'archive dans le dossier qui
+contient `artisan` en écrasant, supprimer l'archive, puis dérouler la mise à jour
+ci-dessous.
+
 ### Avec une ligne de commande (SSH)
 
 ```bash
