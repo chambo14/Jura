@@ -44,6 +44,10 @@ use Illuminate\Support\Collection;
  * @property-read Client $client
  * @property-read Phase|null $phase
  * @property-read WorkflowStep|null $workflowStep
+ * @property-read User|null $chefProjet
+ * @property-read User|null $backUp
+ * @property-read User|null $sponsor
+ * @property-read User|null $referentTechnique
  * @property-read Collection<int, ProjectPhase> $phases
  * @property-read Collection<int, ProjectStep> $steps
  * @property-read Collection<int, Deliverable> $deliverables

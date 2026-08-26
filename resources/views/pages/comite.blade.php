@@ -1,9 +1,10 @@
 <?php
 
 use App\Enums\FlashReportStatus;
-use App\Enums\ProjectCategory;
 use App\Models\FlashReport;
+use App\Services\ComiteBuilder;
 use App\Services\FlashReportBuilder;
+use App\Support\Comite\Diapositive;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Date;
@@ -49,62 +50,23 @@ class extends Component {
     #[Computed]
     public function rapports(): Collection
     {
-        return FlashReport::query()
-            ->whereHas('project', fn ($q) => $q->visibleTo(auth()->user())->actifs())
-            ->pourSemaine($this->lundi())
-            ->when(
-                ! $this->inclureBrouillons,
-                fn ($q) => $q->where('statut', FlashReportStatus::Publie->value),
-            )
-            ->with([
-                'items',
-                'auteur',
-                'workflowStep',
-                'project.client',
-                'project.chefProjet',
-                'project.backUp',
-                'project.sponsor',
-                'project.referentTechnique',
-                'project.members.user',
-                'project.steps.workflowStep',
-            ])
-            ->get()
-            ->sortBy([
-                fn (FlashReport $a, FlashReport $b) => $a->project->categorie->rang() <=> $b->project->categorie->rang(),
-                fn (FlashReport $a, FlashReport $b) => $a->project->ordre_comite <=> $b->project->ordre_comite,
-                fn (FlashReport $a, FlashReport $b) => $a->project->nom <=> $b->project->nom,
-            ])
-            ->values();
+        return app(ComiteBuilder::class)->rapports(
+            auth()->user(),
+            $this->lundi(),
+            $this->inclureBrouillons,
+        );
     }
 
     /**
      * Séquence des diapositives : titre, puis pour chaque rubrique du sommaire
      * un intercalaire suivi de ses projets.
      *
-     * @return Collection<int, array{type: string, categorie?: ProjectCategory, rapport?: FlashReport, projets?: Collection<int, FlashReport>}>
+     * @return Collection<int, Diapositive>
      */
     #[Computed]
     public function diapositives(): Collection
     {
-        $sequence = collect([['type' => 'titre']]);
-
-        foreach (ProjectCategory::ordonnees() as $categorie) {
-            $rapports = $this->rapports()->filter(
-                fn (FlashReport $rapport) => $rapport->project->categorie === $categorie,
-            )->values();
-
-            if ($rapports->isEmpty()) {
-                continue;
-            }
-
-            $sequence->push(['type' => 'rubrique', 'categorie' => $categorie, 'projets' => $rapports]);
-
-            foreach ($rapports as $rapport) {
-                $sequence->push(['type' => 'projet', 'categorie' => $categorie, 'rapport' => $rapport]);
-            }
-        }
-
-        return $sequence->values();
+        return app(ComiteBuilder::class)->diapositives($this->rapports());
     }
 
     #[Computed]
@@ -113,11 +75,8 @@ class extends Component {
         return $this->diapositives()->count();
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
     #[Computed]
-    public function courant(): ?array
+    public function courant(): ?Diapositive
     {
         return $this->diapositives()->get($this->index);
     }
@@ -197,6 +156,20 @@ class extends Component {
 
             <flux:separator vertical class="mx-1 h-6" />
 
+            {{-- Le fichier reprend exactement la séquence projetée à l'écran. --}}
+            <flux:button
+                :href="route('comite.export', ['semaine' => $semaine, 'brouillons' => $inclureBrouillons ? 1 : 0])"
+                icon="arrow-down-tray"
+                variant="ghost"
+                size="sm"
+                :disabled="$this->rapports()->isEmpty()"
+                title="Télécharger la présentation au format PowerPoint"
+            >
+                PowerPoint
+            </flux:button>
+
+            <flux:separator vertical class="mx-1 h-6" />
+
             <flux:button wire:click="changerSemaine(-1)" icon="chevron-double-left" variant="ghost" size="sm" title="Semaine précédente" />
             <flux:button wire:click="changerSemaine(1)" icon="chevron-double-right" variant="ghost" size="sm" title="Semaine suivante" />
 
@@ -215,7 +188,7 @@ class extends Component {
         <div class="w-full max-w-[1280px]" wire:key="slide-{{ $index }}">
             @php $slide = $this->courant(); @endphp
 
-            @if (! $slide || $slide['type'] === 'titre')
+            @if (! $slide || $slide->type === 'titre')
                 {{-- Diapositive de titre : visuel et distinctions du dossier de comité,
                      sous un voile bleu nuit qui garantit la lisibilité en projection. --}}
                 <div
@@ -265,14 +238,14 @@ class extends Component {
                                             class="flex w-full items-center gap-3 border border-white/20 bg-white/10 px-4 py-2.5 text-start transition hover:bg-white/20"
                                         >
                                             <span class="text-lg font-bold tabular-nums text-white/50">
-                                                {{ str_pad((string) $rubrique['categorie']->rang(), 2, '0', STR_PAD_LEFT) }}
+                                                {{ str_pad((string) $rubrique->categorie->rang(), 2, '0', STR_PAD_LEFT) }}
                                             </span>
                                             <span class="min-w-0 flex-1">
                                                 <span class="block truncate font-medium uppercase text-white">
-                                                    {{ $rubrique['categorie']->label() }}
+                                                    {{ $rubrique->categorie->label() }}
                                                 </span>
                                                 <span class="block text-xs text-white/60">
-                                                    {{ $rubrique['projets']->count() }} projet(s)
+                                                    {{ $rubrique->projets->count() }} projet(s)
                                                 </span>
                                             </span>
                                         </button>
@@ -299,20 +272,20 @@ class extends Component {
                         @endforeach
                     </div>
                 </div>
-            @elseif ($slide['type'] === 'rubrique')
+            @elseif ($slide->type === 'rubrique')
                 {{-- Intercalaire de rubrique --}}
                 <div class="flex min-h-[680px] flex-col justify-center bg-white p-12 font-slide shadow-xl ring-1 ring-black/10">
                     <div class="flex items-baseline gap-5 border-b-4 border-mpm-burgundy pb-4">
                         <span class="text-7xl font-bold tabular-nums text-mpm-navy/20">
-                            {{ str_pad((string) $slide['categorie']->rang(), 2, '0', STR_PAD_LEFT) }}
+                            {{ str_pad((string) $slide->categorie->rang(), 2, '0', STR_PAD_LEFT) }}
                         </span>
                         <h1 class="text-4xl font-bold uppercase tracking-tight text-mpm-navy">
-                            {{ $slide['categorie']->label() }}
+                            {{ $slide->categorie->label() }}
                         </h1>
                     </div>
 
                     <ul class="mt-8 space-y-1.5">
-                        @foreach ($slide['projets'] as $rapport)
+                        @foreach ($slide->projets as $rapport)
                             <li class="flex flex-wrap items-center gap-3 border border-mpm-rule px-4 py-2.5">
                                 @if ($rapport->sante)
                                     <span @class([
@@ -345,7 +318,7 @@ class extends Component {
                     />
                 </div>
             @else
-                <x-flash-slide :report="$slide['rapport']" presentation />
+                <x-flash-slide :report="$slide->rapport" presentation />
             @endif
         </div>
     </main>
@@ -354,7 +327,7 @@ class extends Component {
     @if ($this->rapports()->isNotEmpty())
         <footer class="flex flex-wrap items-center gap-1.5 border-t border-zinc-200 bg-zinc-50 px-5 py-2.5 dark:border-zinc-800 dark:bg-zinc-900">
             @foreach ($this->diapositives() as $rang => $diapo)
-                @if ($diapo['type'] === 'titre')
+                @if ($diapo->type === 'titre')
                     <button
                         type="button"
                         wire:click="allerA({{ $rang }})"
@@ -364,37 +337,37 @@ class extends Component {
                             'text-zinc-500 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800' => $index !== $rang,
                         ])
                     >Titre</button>
-                @elseif ($diapo['type'] === 'rubrique')
+                @elseif ($diapo->type === 'rubrique')
                     <button
                         type="button"
                         wire:click="allerA({{ $rang }})"
-                        wire:key="rubrique-{{ $diapo['categorie']->value }}"
+                        wire:key="rubrique-{{ $diapo->categorie->value }}"
                         @class([
                             'ms-2 rounded px-2 py-1 text-xs font-semibold uppercase tracking-wide transition',
                             'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900' => $index === $rang,
                             'text-zinc-600 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-800' => $index !== $rang,
                         ])
-                    >{{ str_pad((string) $diapo['categorie']->rang(), 2, '0', STR_PAD_LEFT) }}</button>
+                    >{{ str_pad((string) $diapo->categorie->rang(), 2, '0', STR_PAD_LEFT) }}</button>
                 @else
                     <button
                         type="button"
                         wire:click="allerA({{ $rang }})"
-                        wire:key="diapo-{{ $diapo['rapport']->id }}"
+                        wire:key="diapo-{{ $diapo->rapport->id }}"
                         @class([
                             'flex items-center gap-1.5 rounded px-2 py-1 text-xs transition',
                             'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900' => $index === $rang,
                             'text-zinc-500 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800' => $index !== $rang,
                         ])
                     >
-                        @if ($diapo['rapport']->sante)
+                        @if ($diapo->rapport->sante)
                             <span @class([
                                 'size-1.5 rounded-full',
-                                'bg-red-500' => $diapo['rapport']->sante->color() === 'red',
-                                'bg-amber-500' => $diapo['rapport']->sante->color() === 'amber',
-                                'bg-green-500' => $diapo['rapport']->sante->color() === 'green',
+                                'bg-red-500' => $diapo->rapport->sante->color() === 'red',
+                                'bg-amber-500' => $diapo->rapport->sante->color() === 'amber',
+                                'bg-green-500' => $diapo->rapport->sante->color() === 'green',
                             ])></span>
                         @endif
-                        {{ $diapo['rapport']->project->code }}
+                        {{ $diapo->rapport->project->code }}
                     </button>
                 @endif
             @endforeach

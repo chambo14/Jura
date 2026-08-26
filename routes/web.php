@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\ComiteExportController;
 use Illuminate\Support\Facades\Route;
 
 // L'application n'a pas de page vitrine : on entre par la connexion.
@@ -29,6 +30,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('documents/{attachment}', AttachmentController::class)->name('documents.download');
 
     Route::livewire('comite', 'pages::comite')->name('comite');
+
+    // La présentation de la semaine, au format attendu par le comité.
+    Route::get('comite/export', ComiteExportController::class)->name('comite.export');
 
     Route::livewire('referentiel', 'pages::referentiel')->name('referentiel');
 
