@@ -256,6 +256,7 @@ Deux fonctions se règlent dans `.env`, l'application marchant sans elles :
 | `DOCUMENTS_DISK` | Disque de stockage des pièces jointes (`local` par défaut, privé) |
 | `DOCUMENTS_MAX_KO` | Taille maximale d'un fichier, en Ko — à garder sous `upload_max_filesize` et `post_max_size` de `php.ini` |
 | `ANTHROPIC_API_KEY` | Active l'assistant de rédaction ; vide, les boutons « Proposer une rédaction » n'apparaissent pas |
+| `MPM_UPDATE_TOKEN` | Arme la page de mise à jour sans ligne de commande (voir plus bas) ; vide, elle répond 404 |
 | `IA_MODELE` | Modèle interrogé par l'assistant |
 
 ### Lancer le serveur
@@ -294,6 +295,60 @@ Le compte Direction est `sandrine.yapo14@gmail.com`.
 ```bash
 npm run build
 ```
+
+## Mettre à jour le site en ligne
+
+Déposer les fichiers — par FTP, par archive dépliée depuis le gestionnaire de fichiers,
+peu importe — **ne met pas le site à jour**. Il reste deux choses que seule une commande
+peut faire, et que l'hébergement mutualisé n'offre pas :
+
+1. **jouer les migrations** : les nouvelles tables et colonnes n'apparaissent pas toutes
+   seules, et les écrans qui en dépendent tombent en erreur tant qu'elles manquent ;
+2. **reconstruire les caches** : un serveur de production garde en cache sa
+   configuration, ses routes et ses vues. Tant qu'ils ne sont pas refaits, il sert
+   l'ancienne version — au point qu'une route ajoutée par la mise à jour n'existe pas
+   encore pour lui.
+
+### Avec une ligne de commande (SSH)
+
+```bash
+php artisan mpm:mise-a-jour            # purge, migre, reconstruit les caches
+php artisan mpm:mise-a-jour --pretend  # montre les migrations en attente, n'applique rien
+```
+
+### Sans ligne de commande
+
+`public/mise-a-jour.php` fait le même travail depuis un navigateur. C'est un fichier posé
+dans `public/`, et non une route de l'application : il est le seul à rester joignable
+quand le cache des routes est périmé.
+
+1. **Tirer un jeton** — sur votre poste :
+
+   ```bash
+   php -r "echo bin2hex(random_bytes(24)), PHP_EOL;"
+   ```
+
+2. **L'inscrire dans le `.env` du serveur** :
+
+   ```
+   MPM_UPDATE_TOKEN=le-jeton-tiré
+   ```
+
+3. **Regarder d'abord** : ouvrir `https://…/mise-a-jour.php?jeton=LE_JETON`. La page liste
+   les migrations en attente **sans rien appliquer**.
+
+4. **Appliquer** : recharger la même adresse en ajoutant `&appliquer=1`. La page affiche
+   le détail de ce qui a été migré et des caches reconstruits.
+
+5. **Refermer** : vider `MPM_UPDATE_TOKEN` dans le `.env`. La page répond de nouveau 404.
+
+Sans jeton dans le `.env`, ou avec un jeton de moins de 32 caractères, la page répond
+**404** : la fonction n'existe pas tant qu'elle n'a pas été armée sciemment. Chaque
+tentative, réussie ou refusée, est journalisée dans `storage/logs` avec l'adresse IP.
+
+> Les fichiers déposés par les utilisateurs vivent dans `storage/app/`, exclu du transfert
+> par le workflow de mise en ligne : une mise à jour ne les écrase pas. Ce dossier doit
+> rester accessible en écriture sur le serveur.
 
 ## Qualité
 
