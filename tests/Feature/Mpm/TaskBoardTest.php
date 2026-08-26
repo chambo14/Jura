@@ -134,6 +134,58 @@ class TaskBoardTest extends TestCase
         $this->assertSame(ProgressStatus::EnCours, $cachee->refresh()->statut);
     }
 
+    public function test_une_carte_se_cree_depuis_le_tableau_du_portefeuille(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create();
+        $project = Project::factory()->create(['chef_projet_id' => $chef->id]);
+
+        // Aucun projet n'est filtré : il se choisit dans la fenêtre de saisie.
+        Livewire::actingAs($chef)
+            ->test('pages::tableau')
+            ->call('nouvelleCarte')
+            // Le projet se choisit dans la fenêtre : le sélecteur doit y être.
+            ->assertSee('Choisir un projet')
+            ->set('carteProjet', (string) $project->id)
+            ->set('carteLibelle', 'Cadrer le besoin')
+            ->call('enregistrerCarte')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('tasks', [
+            'project_id' => $project->id,
+            'libelle' => 'Cadrer le besoin',
+        ]);
+    }
+
+    public function test_une_carte_neuve_sans_projet_est_refusee_avec_un_message(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create();
+        Project::factory()->create(['chef_projet_id' => $chef->id]);
+
+        Livewire::actingAs($chef)
+            ->test('pages::tableau')
+            ->call('nouvelleCarte')
+            ->set('carteLibelle', 'Carte sans projet')
+            ->call('enregistrerCarte')
+            ->assertHasErrors('carteProjet');
+
+        $this->assertDatabaseMissing('tasks', ['libelle' => 'Carte sans projet']);
+    }
+
+    public function test_le_bouton_de_creation_est_reserve_a_qui_peut_contribuer(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create();
+        $sponsor = User::factory()->role(UserRole::Sponsor)->create();
+        Project::factory()->create(['chef_projet_id' => $chef->id, 'sponsor_id' => $sponsor->id]);
+
+        $this->assertTrue(
+            Livewire::actingAs($chef)->test('pages::tableau')->instance()->peutCreerCarte(),
+        );
+
+        $this->assertFalse(
+            Livewire::actingAs($sponsor)->test('pages::tableau')->instance()->peutCreerCarte(),
+        );
+    }
+
     public function test_commenter_est_ouvert_a_qui_voit_le_projet(): void
     {
         $sponsor = User::factory()->role(UserRole::Sponsor)->create();

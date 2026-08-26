@@ -51,6 +51,8 @@ new class extends Component {
     // Carte ouverte dans le panneau latéral.
     public ?int $carteId = null;
 
+    public string $carteProjet = '';
+
     public string $carteLibelle = '';
 
     public string $carteStatut = ProgressStatus::NonDemarre->value;
@@ -287,22 +289,19 @@ new class extends Component {
         return $attributs;
     }
 
+    /**
+     * Ouvre la fenêtre de saisie. Le projet n'est pas un préalable : sur le
+     * tableau du portefeuille, il se choisit dans la fenêtre — refuser
+     * l'ouverture laisserait un bouton qui ne fait rien.
+     */
     public function nouvelleCarte(): void
     {
-        $projet = $this->projetDeSaisie();
-
-        if (! $projet) {
-            Flux::toast(variant: 'warning', text: 'Choisissez d’abord un projet pour y ajouter une carte.');
-
-            return;
-        }
-
-        $this->authorize('contribute', $projet);
-
         $this->reset(
-            'carteId', 'carteLibelle', 'carteAssignee', 'cartePhase', 'carteDebut',
+            'carteId', 'carteProjet', 'carteLibelle', 'carteAssignee', 'cartePhase', 'carteDebut',
             'carteEcheance', 'carteDescription', 'nouveauCommentaire', 'fichiers', 'suggestions',
         );
+
+        $this->carteProjet = (string) ($this->projetDeSaisie()?->id ?? '');
         $this->carteStatut = ProgressStatus::NonDemarre->value;
         $this->cartePriorite = TaskPriority::Normale->value;
         $this->carteAvancement = 0;
@@ -330,7 +329,7 @@ new class extends Component {
         $this->carteEcheance = $carte->date_echeance?->format('Y-m-d') ?? '';
         $this->carteAvancement = (int) $carte->avancement_pct;
         $this->carteDescription = $carte->description ?? '';
-        $this->reset('nouveauCommentaire', 'fichiers', 'suggestions');
+        $this->reset('carteProjet', 'nouveauCommentaire', 'fichiers', 'suggestions');
 
         Flux::modal('carte')->show();
     }
@@ -340,7 +339,11 @@ new class extends Component {
         $carte = $this->carteId ? $this->carteOuFalse($this->carteId) : null;
         $projet = $carte?->project ?? $this->projetDeSaisie();
 
-        abort_unless($projet !== null, 404);
+        if (! $projet) {
+            $this->addError('carteProjet', 'Choisissez le projet auquel rattacher cette carte.');
+
+            return;
+        }
 
         $this->authorize('contribute', $projet);
 
@@ -561,12 +564,19 @@ new class extends Component {
     {
         $projet = $this->carte()?->project ?? $this->projetDeSaisie();
 
-        return $projet !== null && auth()->user()->can('contribute', $projet);
+        if ($projet) {
+            return auth()->user()->can('contribute', $projet);
+        }
+
+        // Carte neuve dont le projet n'est pas encore choisi : la saisie
+        // s'ouvre dès lors qu'il existe un projet où la déposer.
+        return $this->carteId === null && $this->peutCreerCarte();
     }
 
     /**
      * Le projet dans lequel une nouvelle carte serait créée : celui de
-     * l'onglet, ou celui du filtre quand le tableau couvre le portefeuille.
+     * l'onglet, sinon celui choisi dans la fenêtre, sinon celui du filtre
+     * quand le tableau couvre le portefeuille.
      */
     private function projetDeSaisie(): ?Project
     {
@@ -574,9 +584,35 @@ new class extends Component {
             return $this->project;
         }
 
-        return $this->filtreProjet !== ''
-            ? $this->projets()->firstWhere('id', (int) $this->filtreProjet)
-            : null;
+        foreach ([$this->carteProjet, $this->filtreProjet] as $choix) {
+            if ($choix !== '') {
+                return $this->projets()->firstWhere('id', (int) $choix);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Projets où l'utilisateur peut ouvrir une carte. Sans aucun, le bouton
+     * n'a pas lieu d'être.
+     *
+     * @return Collection<int, Project>
+     */
+    #[Computed]
+    public function projetsOuContribuer(): Collection
+    {
+        return $this->projets()->filter(
+            fn (Project $projet) => auth()->user()->can('contribute', $projet),
+        )->values();
+    }
+
+    #[Computed]
+    public function peutCreerCarte(): bool
+    {
+        return $this->project
+            ? auth()->user()->can('contribute', $this->project)
+            : $this->projetsOuContribuer()->isNotEmpty();
     }
 
     /**
@@ -593,7 +629,10 @@ new class extends Component {
 
     private function rafraichir(): void
     {
-        unset($this->cartes, $this->bandes, $this->synthese, $this->carte, $this->phasesProjet);
+        unset(
+            $this->cartes, $this->bandes, $this->synthese, $this->carte,
+            $this->phasesProjet, $this->projetsOuContribuer, $this->peutCreerCarte,
+        );
     }
 
     public function rendering(\Illuminate\View\View $view): void
@@ -615,7 +654,9 @@ new class extends Component {
                 </flux:text>
             </div>
 
-            <flux:button wire:click="nouvelleCarte" variant="primary" size="sm" icon="plus">Nouvelle carte</flux:button>
+            @if ($this->peutCreerCarte())
+                <flux:button wire:click="nouvelleCarte" variant="primary" size="sm" icon="plus">Nouvelle carte</flux:button>
+            @endif
         </div>
     @endunless
 
@@ -672,7 +713,7 @@ new class extends Component {
             <flux:checkbox wire:model.live="afficherAnnulees" label="Annulées" />
         </div>
 
-        @if ($project)
+        @if ($project && $this->peutCreerCarte())
             <flux:spacer />
             <flux:button wire:click="nouvelleCarte" variant="primary" size="sm" icon="plus" class="mb-1">
                 Nouvelle carte
@@ -811,6 +852,20 @@ new class extends Component {
             </div>
 
             <form wire:submit="enregistrerCarte" class="space-y-4">
+                @if (! $carteId && ! $project)
+                    <flux:select
+                        wire:model.live="carteProjet"
+                        label="Projet"
+                        placeholder="Choisir un projet…"
+                        required
+                    >
+                        <flux:select.option value="">Choisir un projet…</flux:select.option>
+                        @foreach ($this->projetsOuContribuer() as $projet)
+                            <flux:select.option :value="$projet->id">{{ $projet->code }} — {{ $projet->nom }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                @endif
+
                 <flux:input wire:model="carteLibelle" label="Libellé" required :disabled="! $this->peutModifierCarte()" />
 
                 <div class="grid gap-3 sm:grid-cols-3">
