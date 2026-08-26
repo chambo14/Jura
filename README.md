@@ -85,8 +85,15 @@ l'enregistrement habituel de l'écran qui le valide. La consigne lui interdit d'
 un chiffre, une date ou un nom absent du contexte — la relecture reste due.
 
 **Sans clé d'API renseignée, la fonction n'apparaît pas** et l'application fonctionne à
-l'identique. Pour l'activer, renseigner `ANTHROPIC_API_KEY` dans `.env` ; le modèle et
-les délais se règlent dans `config/ia.php`.
+l'identique. Pour l'activer, créer une clé depuis la console Claude — *Settings → API keys*,
+<https://platform.claude.com/settings/keys> — et la renseigner dans `ANTHROPIC_API_KEY`.
+
+Deux points à connaître au moment de la créer. L'**expiration se choisit à la création** et
+ne se modifie plus ensuite ; une clé expirée fait répondre 401 et il faut en créer une autre.
+Et la facturation est **à l'usage** : chaque suggestion consomme le contexte du projet en
+entrée et quelques phrases en sortie, soit une fraction de centime par clic.
+
+Le modèle, l'effort de raisonnement et les délais se règlent dans `config/ia.php`.
 
 ### Flash report
 
@@ -257,7 +264,8 @@ Deux fonctions se règlent dans `.env`, l'application marchant sans elles :
 | `DOCUMENTS_MAX_KO` | Taille maximale d'un fichier, en Ko — à garder sous `upload_max_filesize` et `post_max_size` de `php.ini` |
 | `ANTHROPIC_API_KEY` | Active l'assistant de rédaction ; vide, les boutons « Proposer une rédaction » n'apparaissent pas |
 | `MPM_UPDATE_TOKEN` | Arme la page de mise à jour sans ligne de commande (voir plus bas) ; vide, elle répond 404 |
-| `IA_MODELE` | Modèle interrogé par l'assistant |
+| `IA_MODELE` | Modèle interrogé par l'assistant (`claude-opus-5` par défaut) |
+| `IA_EFFORT` | Effort de raisonnement : `low` par défaut, suffisant pour reformuler. À vider si `IA_MODELE` pointe vers une génération antérieure, qui rejette ce paramètre |
 
 ### Lancer le serveur
 

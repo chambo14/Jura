@@ -180,12 +180,7 @@ class AiSuggestionService
                 'anthropic-version' => (string) config('ia.version'),
             ])
                 ->timeout((int) config('ia.timeout'))
-                ->post((string) config('ia.url'), [
-                    'model' => (string) config('ia.modele'),
-                    'max_tokens' => (int) config('ia.max_tokens'),
-                    'system' => self::CONSIGNE,
-                    'messages' => [['role' => 'user', 'content' => $message]],
-                ]);
+                ->post((string) config('ia.url'), $this->corpsDeLaDemande($message));
         } catch (ConnectionException $e) {
             Log::warning('Assistant de rédaction injoignable.', ['exception' => $e->getMessage()]);
 
@@ -212,6 +207,29 @@ class AiSuggestionService
             ->where('type', 'text')
             ->pluck('text')
             ->implode("\n");
+    }
+
+    /**
+     * Corps de la requête. L'effort de raisonnement n'est envoyé que s'il est
+     * configuré : les générations antérieures de modèles le rejettent, et une
+     * installation qui pointe vers l'une d'elles doit rester fonctionnelle.
+     *
+     * @return array<string, mixed>
+     */
+    private function corpsDeLaDemande(string $message): array
+    {
+        $corps = [
+            'model' => (string) config('ia.modele'),
+            'max_tokens' => (int) config('ia.max_tokens'),
+            'system' => self::CONSIGNE,
+            'messages' => [['role' => 'user', 'content' => $message]],
+        ];
+
+        if (filled(config('ia.effort'))) {
+            $corps['output_config'] = ['effort' => (string) config('ia.effort')];
+        }
+
+        return $corps;
     }
 
     /**

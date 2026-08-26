@@ -85,6 +85,28 @@ class AiSuggestionTest extends TestCase
         });
     }
 
+    public function test_leffort_de_raisonnement_accompagne_la_demande(): void
+    {
+        config()->set('ia.effort', 'low');
+        Http::fake(['*' => Http::response($this->reponse('["Une proposition."]'))]);
+
+        app(AiSuggestionService::class)->pointDAttention($this->projet());
+
+        Http::assertSent(fn (Request $requete) => $requete->data()['output_config'] === ['effort' => 'low']);
+    }
+
+    public function test_un_modele_sans_effort_configure_nen_envoie_pas(): void
+    {
+        // Les générations antérieures rejettent ce paramètre : l'omettre doit
+        // rester possible pour qui pointe IA_MODELE vers l'une d'elles.
+        config()->set('ia.effort', '');
+        Http::fake(['*' => Http::response($this->reponse('["Une proposition."]'))]);
+
+        app(AiSuggestionService::class)->pointDAttention($this->projet());
+
+        Http::assertSent(fn (Request $requete) => ! array_key_exists('output_config', $requete->data()));
+    }
+
     public function test_une_reponse_hors_format_est_quand_meme_exploitee(): void
     {
         Http::fake(['*' => Http::response($this->reponse("Première proposition.\n\nSeconde proposition."))]);
