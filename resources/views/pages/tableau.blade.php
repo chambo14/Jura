@@ -859,7 +859,8 @@ new class extends Component {
                         placeholder="Choisir un projet…"
                         required
                     >
-                        <flux:select.option value="">Choisir un projet…</flux:select.option>
+                        {{-- L'invite vient de `placeholder` : une option vide de plus
+                             ferait doublon, et Flux la rendrait de toute façon inerte. --}}
                         @foreach ($this->projetsOuContribuer() as $projet)
                             <flux:select.option :value="$projet->id">{{ $projet->code }} — {{ $projet->nom }}</flux:select.option>
                         @endforeach
@@ -892,10 +893,12 @@ new class extends Component {
                 </div>
 
                 <div class="grid gap-3 sm:grid-cols-2">
+                    {{-- Le rattachement automatique d'un collaborateur hors projet est
+                         annoncé après enregistrement, au moment où il se produit : une
+                         description permanente ici déséquilibrait la ligne pour rien. --}}
                     <flux:select
                         wire:model="carteAssignee"
                         label="Assigné à"
-                        description="Un collaborateur hors projet sera rattaché comme contributeur"
                         :disabled="! $this->peutModifierCarte()"
                     >
                         <flux:select.option value="">Non assigné</flux:select.option>
