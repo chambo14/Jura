@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AttachmentController;
 use Illuminate\Support\Facades\Route;
 
 // L'application n'a pas de page vitrine : on entre par la connexion.
@@ -19,7 +20,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('plan-de-charge', 'pages::plan-de-charge.index')->name('plan-de-charge.index');
     Route::livewire('plan-de-charge/{user}', 'pages::plan-de-charge.show')->name('plan-de-charge.show');
 
+    Route::livewire('tableau', 'pages::tableau')->name('tableau');
+
     Route::livewire('analyse', 'pages::analyse')->name('analyse');
+
+    // Les fichiers déposés ne sont jamais servis depuis le disque public :
+    // le contrôleur revérifie l'accès au projet à chaque téléchargement.
+    Route::get('documents/{attachment}', AttachmentController::class)->name('documents.download');
 
     Route::livewire('comite', 'pages::comite')->name('comite');
 

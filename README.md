@@ -13,7 +13,8 @@ hebdomadaire** présenté en comité.
 |---|---|
 | **Tableau de bord** | Portefeuille consolidé : avancement, échéances, santé de chaque projet, alertes critiques |
 | **Projets** | Liste filtrable (type, statut, santé, chef de projet) et création d'un projet |
-| **Fiche projet** | 6 onglets : Synthèse · Planning & délais · Ressources · Livrables · Tâches · Flash reports |
+| **Fiche projet** | 8 onglets : Synthèse · Planning & délais · Ressources · Livrables · Tâches · Tableau · Documents · Flash reports |
+| **Tableau des équipes** | Kanban du portefeuille : cartes déplaçables entre colonnes, filtres par équipe métier, discussion et pièces jointes par carte |
 | **Flash reports** | Couverture hebdomadaire du portefeuille, préparation en masse des rapports manquants |
 | **Plan de charge** | Charge par collaborateur, au mois ou à la semaine, avec fiche individuelle et histogramme prévisionnel |
 | **Mode comité** | Présentation plein écran : diapositive de titre, intercalaires de rubrique, une diapositive par projet, navigation au clavier (← →) |
@@ -36,6 +37,56 @@ Les livrables types du référentiel MPM sont déroulés automatiquement à la c
 rattachés à leur phase et à leur entité responsable. Un livrable restreint à certains types de
 projet (ex. *Plan de migration des données*) n'est créé que là où il s'applique.
 `Recharger le référentiel MPM` rattrape les livrables ajoutés au référentiel après coup.
+
+### Tableau des équipes
+
+Un **kanban** dresse le travail en cours, au niveau d'un projet (onglet *Tableau*) ou du
+portefeuille entier (menu *Tableau des équipes*). Les colonnes sont les statuts déjà
+utilisés partout ailleurs : **Non démarré · En cours · Bloqué · Terminé**. Déplacer une
+carte change le statut de la tâche — et donc, dans le même mouvement, le plan de charge,
+la santé du projet et le flash report. Il n'y a pas deux vérités.
+
+- La carte se lâche **sur une colonne** (elle passe en fin de file) ou **sur une autre
+  carte** (elle se glisse devant elle) : c'est ce qui fixe l'ordre de passage.
+- Une carte lâchée dans *Terminé* est datée du jour ; ressortie de *Terminé*, elle perd
+  sa date de réalisation.
+- Chaque carte porte une **priorité**, une **discussion** et ses **pièces jointes**.
+  Commenter est ouvert à qui voit le projet — un sponsor peut répondre sans avoir le
+  droit de modifier la carte.
+- Le tableau se lit d'un bloc, ou **une bande par équipe métier** (case *Par équipe*).
+  L'équipe d'un collaborateur se renseigne dans l'écran **Utilisateurs**.
+- Les cartes annulées sont hors tableau ; la case *Annulées* les fait réapparaître pour
+  retrouver un travail abandonné.
+
+### Documents
+
+Des fichiers se déposent sur un **projet**, un **livrable** ou une **tâche** — cahier des
+charges, PV de recette, capture d'écran, planning. L'onglet *Documents* d'un projet
+rassemble tout ce qui lui est rattaché, quel que soit le point de dépôt.
+
+Les fichiers ne sont **jamais servis depuis un dossier public** : ils sont rangés sur un
+disque privé sous un nom aléatoire, et chaque téléchargement repasse par le contrôle
+d'accès du projet. Le nom d'origine est conservé pour l'affichage et restitué au
+téléchargement. Qui voit le projet télécharge ; qui y contribue dépose et retire, chacun
+pouvant retirer ce qu'il a lui-même déposé.
+
+Taille et formats acceptés se règlent dans `config/documents.php` (20 Mo par fichier et
+les formats bureautiques, images et archives, par défaut).
+
+### Assistant de rédaction
+
+Trois champs peuvent être **proposés plutôt que saisis de zéro** : la synthèse d'un flash
+report, un point d'attention, la description d'une carte. L'assistant part de ce qui est
+déjà en base — avancement, dérives détectées, activités de la semaine — et propose des
+formulations que l'on reprend d'un clic, puis corrige.
+
+Rien n'est enregistré par l'assistant : le texte retenu atterrit dans le champ, et c'est
+l'enregistrement habituel de l'écran qui le valide. La consigne lui interdit d'inventer
+un chiffre, une date ou un nom absent du contexte — la relecture reste due.
+
+**Sans clé d'API renseignée, la fonction n'apparaît pas** et l'application fonctionne à
+l'identique. Pour l'activer, renseigner `ANTHROPIC_API_KEY` dans `.env` ; le modèle et
+les délais se règlent dans `config/ia.php`.
 
 ### Flash report
 
@@ -196,6 +247,17 @@ Le fichier SQLite n'est pas versionné : il faut le créer avant la première
 migration. `composer setup` enchaîne l'essentiel, mais ne crée ni la base ni
 le jeu de démonstration.
 
+### Réglages facultatifs
+
+Deux fonctions se règlent dans `.env`, l'application marchant sans elles :
+
+| Clé | Effet |
+|---|---|
+| `DOCUMENTS_DISK` | Disque de stockage des pièces jointes (`local` par défaut, privé) |
+| `DOCUMENTS_MAX_KO` | Taille maximale d'un fichier, en Ko — à garder sous `upload_max_filesize` et `post_max_size` de `php.ini` |
+| `ANTHROPIC_API_KEY` | Active l'assistant de rédaction ; vide, les boutons « Proposer une rédaction » n'apparaissent pas |
+| `IA_MODELE` | Modèle interrogé par l'assistant |
+
 ### Lancer le serveur
 
 ```powershell
@@ -259,6 +321,8 @@ app/
     ProjectHealthService  Calcule les dérives et la santé d'un projet
     FlashReportBuilder    Prépare, rafraîchit et publie le flash report
     GanttBuilder          Positionne phases et jalons pour le diagramme
+    AttachmentService     Dépôt et retrait des pièces jointes sur disque privé
+    AiSuggestionService   Propositions de rédaction (synthèse, point d'attention, tâche)
   Support/          Objets de valeur (alertes, santé, données du Gantt)
 database/seeders/
   MpmReferentialSeeder    Les 8 phases, 35 livrables types, bandeaux par type de projet

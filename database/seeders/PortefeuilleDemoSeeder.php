@@ -75,41 +75,41 @@ class PortefeuilleDemoSeeder extends Seeder
      */
     private function seedUsers(): array
     {
-        // clé => [nom, email, rôle, poste]
+        // clé => [nom, email, rôle, poste, équipe métier]
         $definitions = [
-            'sandrine' => ['Sandrine YAPO', 'sandrine.yapo14@gmail.com', UserRole::Direction, 'Direction des Projets & Organisation'],
+            'sandrine' => ['Sandrine YAPO', 'sandrine.yapo14@gmail.com', UserRole::Direction, 'Direction des Projets & Organisation', 'Direction Projets'],
 
-            'kevin' => ['Kevin ZAGO', 'kevin.zago@demo.local', UserRole::ChefProjet, 'Chef de projet'],
-            'anselme' => ['Kouamé ANSELME', 'kouame.anselme@demo.local', UserRole::ChefProjet, 'Chef de projet'],
-            'ben' => ['Ben CISSÉ N\'GODJIGUI', 'ben.cisse@demo.local', UserRole::ChefProjet, 'Chef de projet'],
-            'serge' => ['Serge GOUETY', 'serge.gouety@demo.local', UserRole::ChefProjet, 'Chef de projet'],
-            'siaka' => ['Siaka KONÉ DONAFANNY', 'siaka.donnafanny@demo.local', UserRole::ChefProjet, 'Chef de projet'],
+            'kevin' => ['Kevin ZAGO', 'kevin.zago@demo.local', UserRole::ChefProjet, 'Chef de projet', 'Direction Projets'],
+            'anselme' => ['Kouamé ANSELME', 'kouame.anselme@demo.local', UserRole::ChefProjet, 'Chef de projet', 'Direction Projets'],
+            'ben' => ['Ben CISSÉ N\'GODJIGUI', 'ben.cisse@demo.local', UserRole::ChefProjet, 'Chef de projet', 'Direction Projets'],
+            'serge' => ['Serge GOUETY', 'serge.gouety@demo.local', UserRole::ChefProjet, 'Chef de projet', 'Direction Projets'],
+            'siaka' => ['Siaka KONÉ DONAFANNY', 'siaka.donnafanny@demo.local', UserRole::ChefProjet, 'Chef de projet', 'Direction Projets'],
 
-            'stephanie' => ['Stéphanie COULIBALY', 'stephanie.coulibaly@demo.local', UserRole::Sponsor, 'Sponsor'],
-            'oumar' => ['Oumar KAMARA', 'oumar.kamara@demo.local', UserRole::Sponsor, 'Sponsor'],
-            'flatene' => ['FLATENE KÉITA', 'flatene.keita@demo.local', UserRole::Sponsor, 'Sponsor'],
-            'olivier' => ['Olivier N\'DA', 'olivier.nda@demo.local', UserRole::Sponsor, 'Sponsor'],
-            'fofana' => ['Bandié FOFANA', 'bandie.fofana@demo.local', UserRole::Sponsor, 'Sponsor'],
-            'sanogo' => ['Oumar SANOGO', 'oumar.sanogo@demo.local', UserRole::Sponsor, 'Sponsor'],
+            'stephanie' => ['Stéphanie COULIBALY', 'stephanie.coulibaly@demo.local', UserRole::Sponsor, 'Sponsor', 'Métier'],
+            'oumar' => ['Oumar KAMARA', 'oumar.kamara@demo.local', UserRole::Sponsor, 'Sponsor', 'Métier'],
+            'flatene' => ['FLATENE KÉITA', 'flatene.keita@demo.local', UserRole::Sponsor, 'Sponsor', 'Métier'],
+            'olivier' => ['Olivier N\'DA', 'olivier.nda@demo.local', UserRole::Sponsor, 'Sponsor', 'Métier'],
+            'fofana' => ['Bandié FOFANA', 'bandie.fofana@demo.local', UserRole::Sponsor, 'Sponsor', 'Métier'],
+            'sanogo' => ['Oumar SANOGO', 'oumar.sanogo@demo.local', UserRole::Sponsor, 'Sponsor', 'Métier'],
 
-            'alex' => ['Alex BEDA', 'alex.beda@demo.local', UserRole::Membre, 'Référent technique'],
-            'bekouanKassi' => ['Bekouan KASSI', 'bekouan.kassi@demo.local', UserRole::Membre, 'Référent technique'],
-            'bekouanMartial' => ['Bekouan J. MARTIAL', 'bekouan.martial@demo.local', UserRole::Membre, 'Référent technique'],
-            'karim' => ['Karim KAMARA', 'karim.kamara@demo.local', UserRole::Membre, 'Référent technique'],
-            'yacouba' => ['Yacouba BAH', 'yacouba.bah@demo.local', UserRole::Membre, 'Référent technique'],
-            'arnaud' => ['Arnaud SAPIM', 'arnaud.sapim@demo.local', UserRole::Membre, 'Référent technique'],
-            'jeanpaul' => ['Jean-Paul SAPIM', 'jeanpaul.sapim@demo.local', UserRole::Membre, 'Référent technique'],
-            'lamine' => ['Lamine KOMOU', 'lamine.komou@demo.local', UserRole::Membre, 'Référent technique'],
-            'katina' => ['Katina OUATTARA', 'katina.ouattara@demo.local', UserRole::Membre, 'Référent technique'],
-            'franck' => ['Franck GNOGOURI', 'franck.gnogouri@demo.local', UserRole::Membre, 'Référent technique'],
+            'alex' => ['Alex BEDA', 'alex.beda@demo.local', UserRole::Membre, 'Référent technique', 'Monétique'],
+            'bekouanKassi' => ['Bekouan KASSI', 'bekouan.kassi@demo.local', UserRole::Membre, 'Référent technique', 'Monétique'],
+            'bekouanMartial' => ['Bekouan J. MARTIAL', 'bekouan.martial@demo.local', UserRole::Membre, 'Référent technique', 'Monétique'],
+            'karim' => ['Karim KAMARA', 'karim.kamara@demo.local', UserRole::Membre, 'Référent technique', 'Monétique'],
+            'yacouba' => ['Yacouba BAH', 'yacouba.bah@demo.local', UserRole::Membre, 'Référent technique', 'Monétique'],
+            'arnaud' => ['Arnaud SAPIM', 'arnaud.sapim@demo.local', UserRole::Membre, 'Référent technique', 'Banque digitale'],
+            'jeanpaul' => ['Jean-Paul SAPIM', 'jeanpaul.sapim@demo.local', UserRole::Membre, 'Référent technique', 'Banque digitale'],
+            'lamine' => ['Lamine KOMOU', 'lamine.komou@demo.local', UserRole::Membre, 'Référent technique', 'Banque digitale'],
+            'katina' => ['Katina OUATTARA', 'katina.ouattara@demo.local', UserRole::Membre, 'Référent technique', 'Banque digitale'],
+            'franck' => ['Franck GNOGOURI', 'franck.gnogouri@demo.local', UserRole::Membre, 'Référent technique', 'Banque digitale'],
 
-            'zie' => ['Zié COULIBALY', 'zie.coulibaly@demo.local', UserRole::Membre, 'Testeur'],
-            'gbadje' => ['GBADJÉ', 'gbadje@demo.local', UserRole::Membre, 'Testeur'],
-            'lacina' => ['Lacina KONATÉ', 'lacina.konate@demo.local', UserRole::Membre, 'Testeur'],
-            'jeanne' => ['Jeanne KWAH', 'jeanne.kwah@demo.local', UserRole::Membre, 'Testeuse'],
+            'zie' => ['Zié COULIBALY', 'zie.coulibaly@demo.local', UserRole::Membre, 'Testeur', 'Recette & Qualité'],
+            'gbadje' => ['GBADJÉ', 'gbadje@demo.local', UserRole::Membre, 'Testeur', 'Recette & Qualité'],
+            'lacina' => ['Lacina KONATÉ', 'lacina.konate@demo.local', UserRole::Membre, 'Testeur', 'Recette & Qualité'],
+            'jeanne' => ['Jeanne KWAH', 'jeanne.kwah@demo.local', UserRole::Membre, 'Testeuse', 'Recette & Qualité'],
 
-            'michee' => ['Michée TEKI', 'michee.teki@demo.local', UserRole::Membre, 'Intégrateur'],
-            'ngoran' => ['Sandrine N\'GORAN', 'sandrine.ngoran@demo.local', UserRole::Membre, 'Chef de projet adjoint'],
+            'michee' => ['Michée TEKI', 'michee.teki@demo.local', UserRole::Membre, 'Intégrateur', 'Intégration'],
+            'ngoran' => ['Sandrine N\'GORAN', 'sandrine.ngoran@demo.local', UserRole::Membre, 'Chef de projet adjoint', 'Direction Projets'],
         ];
 
         // Les profils système sont semés par MpmReferentialSeeder.
@@ -117,13 +117,14 @@ class PortefeuilleDemoSeeder extends Seeder
 
         $users = [];
 
-        foreach ($definitions as $cle => [$nom, $email, $role, $poste]) {
+        foreach ($definitions as $cle => [$nom, $email, $role, $poste, $equipe]) {
             $users[$cle] = User::updateOrCreate(
                 ['email' => $email],
                 [
                     'name' => $nom,
                     'profile_id' => $profils[$role->value] ?? null,
                     'poste' => $poste,
+                    'equipe' => $equipe,
                     'actif' => true,
                     'password' => 'password',
                     'email_verified_at' => now(),

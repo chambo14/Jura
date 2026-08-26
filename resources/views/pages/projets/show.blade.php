@@ -20,6 +20,8 @@ new class extends Component {
         'ressources' => ['libelle' => 'Ressources', 'icone' => 'users'],
         'livrables' => ['libelle' => 'Livrables', 'icone' => 'document-text'],
         'taches' => ['libelle' => 'Tâches', 'icone' => 'check-circle'],
+        'tableau' => ['libelle' => 'Tableau', 'icone' => 'view-columns'],
+        'documents' => ['libelle' => 'Documents', 'icone' => 'paper-clip'],
         'rapports' => ['libelle' => 'Flash reports', 'icone' => 'bolt'],
     ];
 
@@ -131,6 +133,14 @@ new class extends Component {
 
             @case('taches')
                 <livewire:pages::projets.onglets.taches :project="$project" :key="'taches-'.$project->id" />
+                @break
+
+            @case('tableau')
+                <livewire:pages::tableau :project="$project" :key="'tableau-'.$project->id" />
+                @break
+
+            @case('documents')
+                <livewire:pages::projets.onglets.documents :project="$project" :key="'documents-'.$project->id" />
                 @break
 
             @case('rapports')

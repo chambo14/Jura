@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Concerns\HasAttachments;
 use App\Enums\ProgressStatus;
+use App\Enums\TaskPriority;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -23,22 +27,30 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float $avancement_pct
  * @property int|null $charge_jours
  * @property ProgressStatus $statut
+ * @property TaskPriority $priorite
+ * @property int $ordre
  * @property-read Project $project
  * @property-read ProjectPhase|null $projectPhase
  * @property-read User|null $assignee
  * @property-read User|null $deleguePar
+ * @property-read Collection<int, TaskComment> $comments
+ * @property-read Collection<int, Attachment> $attachments
  */
 #[Fillable([
     'project_id', 'project_phase_id', 'assignee_id', 'delegue_par_id', 'libelle', 'description',
     'date_debut', 'date_echeance', 'date_realisation', 'avancement_pct', 'charge_jours', 'statut',
+    'priorite', 'ordre',
 ])]
 class Task extends Model
 {
+    use HasAttachments;
+
     /** @return array<string, string> */
     protected function casts(): array
     {
         return [
             'statut' => ProgressStatus::class,
+            'priorite' => TaskPriority::class,
             'date_debut' => 'date',
             'date_echeance' => 'date',
             'date_realisation' => 'date',
@@ -68,6 +80,12 @@ class Task extends Model
     public function deleguePar(): BelongsTo
     {
         return $this->belongsTo(User::class, 'delegue_par_id');
+    }
+
+    /** @return HasMany<TaskComment, $this> */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(TaskComment::class)->oldest();
     }
 
     /**

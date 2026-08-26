@@ -24,6 +24,10 @@
                         Flash reports
                     </flux:sidebar.item>
 
+                    <flux:sidebar.item icon="view-columns" :href="route('tableau')" :current="request()->routeIs('tableau')" wire:navigate>
+                        Tableau des équipes
+                    </flux:sidebar.item>
+
                     <flux:sidebar.item icon="users" :href="route('plan-de-charge.index')" :current="request()->routeIs('plan-de-charge.*')" wire:navigate>
                         Plan de charge
                     </flux:sidebar.item>

@@ -29,6 +29,8 @@ new class extends Component {
 
     public string $poste = '';
 
+    public string $equipe = '';
+
     public string $telephone = '';
 
     public bool $actif = true;
@@ -77,7 +79,7 @@ new class extends Component {
     {
         $this->authorize('create', User::class);
 
-        $this->reset('enEdition', 'nom', 'email', 'poste', 'telephone', 'motDePasseProvisoire');
+        $this->reset('enEdition', 'nom', 'email', 'poste', 'equipe', 'telephone', 'motDePasseProvisoire');
         $this->profilId = (string) ($this->profils()->last()?->id ?? '');
         $this->actif = true;
         $this->resetValidation();
@@ -105,6 +107,7 @@ new class extends Component {
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->enEdition)],
             'profilId' => ['required', 'exists:profiles,id'],
             'poste' => ['nullable', 'string', 'max:255'],
+            'equipe' => ['nullable', 'string', 'max:255'],
             'telephone' => ['nullable', 'string', 'max:40'],
             'actif' => ['boolean'],
         ], attributes: [
@@ -118,6 +121,7 @@ new class extends Component {
             'email' => Str::lower($donnees['email']),
             'profile_id' => $donnees['profilId'],
             'poste' => $donnees['poste'] ?: null,
+            'equipe' => $donnees['equipe'] ?: null,
             'telephone' => $donnees['telephone'] ?: null,
             'actif' => $donnees['actif'],
         ];
@@ -197,6 +201,7 @@ new class extends Component {
         $this->email = $utilisateur->email;
         $this->profilId = (string) ($utilisateur->profile_id ?? '');
         $this->poste = $utilisateur->poste ?? '';
+        $this->equipe = $utilisateur->equipe ?? '';
         $this->telephone = $utilisateur->telephone ?? '';
         $this->actif = $utilisateur->actif;
     }
@@ -273,7 +278,12 @@ new class extends Component {
                             @endif
                         </td>
 
-                        <td class="px-4 py-3 text-zinc-600 dark:text-zinc-300">{{ $utilisateur->poste ?? '—' }}</td>
+                        <td class="px-4 py-3 text-zinc-600 dark:text-zinc-300">
+                            {{ $utilisateur->poste ?? '—' }}
+                            @if ($utilisateur->equipe)
+                                <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ $utilisateur->equipe }}</div>
+                            @endif
+                        </td>
 
                         <td class="px-4 py-3 text-center tabular-nums text-zinc-600 dark:text-zinc-300">
                             {{ $utilisateur->projets_pilotes_count }}
@@ -346,8 +356,15 @@ new class extends Component {
 
             <div class="grid grid-cols-2 gap-3">
                 <flux:input wire:model="poste" label="Poste" placeholder="Chef de projet" />
-                <flux:input wire:model="telephone" label="Téléphone" />
+                <flux:input
+                    wire:model="equipe"
+                    label="Équipe métier"
+                    placeholder="Monétique, Digital, Recette…"
+                    description="Maille de lecture du tableau des équipes"
+                />
             </div>
+
+            <flux:input wire:model="telephone" label="Téléphone" />
 
             <flux:checkbox wire:model="actif" label="Compte actif" />
 

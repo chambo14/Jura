@@ -2,8 +2,10 @@
 
 use App\Enums\FlashItemType;
 use App\Enums\FlashReportStatus;
+use App\Exceptions\SuggestionIndisponible;
 use App\Models\FlashReport;
 use App\Models\FlashReportItem;
+use App\Services\AiSuggestionService;
 use App\Services\FlashReportBuilder;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -27,6 +29,15 @@ new class extends Component {
     public string $nouvelleDate = '';
 
     public bool $apercu = false;
+
+    /** @var array<int, string> */
+    public array $suggestions = [];
+
+    /**
+     * Champ auquel la proposition retenue sera appliquée : la synthèse, ou
+     * le libellé de la ligne en cours de saisie.
+     */
+    public string $cibleSuggestion = 'synthese';
 
     public function mount(FlashReport $flashReport): void
     {
@@ -102,6 +113,67 @@ new class extends Component {
         $this->flashReport->load('items');
 
         Flux::toast(variant: 'success', text: 'Flash report enregistré.');
+    }
+
+    #[Computed]
+    public function assistantDisponible(): bool
+    {
+        return app(AiSuggestionService::class)->disponible();
+    }
+
+    /**
+     * Propositions de rédaction. Rien n'est enregistré : le chef de projet
+     * reprend la formulation qui lui convient, la corrige, et enregistre par
+     * l'action habituelle de l'écran.
+     */
+    public function suggererSynthese(): void
+    {
+        $this->proposer('synthese', fn (AiSuggestionService $assistant) => $assistant->syntheseFlashReport(
+            $this->flashReport,
+            $this->synthese,
+        ));
+    }
+
+    public function suggererPointAttention(): void
+    {
+        $this->proposer('attention', fn (AiSuggestionService $assistant) => $assistant->pointDAttention(
+            $this->flashReport->project,
+            $this->nouveauLibelle,
+        ));
+    }
+
+    /**
+     * @param  callable(AiSuggestionService): array<int, string>  $demande
+     */
+    private function proposer(string $cible, callable $demande): void
+    {
+        $this->authorize('update', $this->flashReport);
+
+        $this->cibleSuggestion = $cible;
+
+        try {
+            $this->suggestions = $demande(app(AiSuggestionService::class));
+        } catch (SuggestionIndisponible $e) {
+            $this->suggestions = [];
+
+            Flux::toast(variant: 'danger', text: $e->getMessage());
+        }
+    }
+
+    public function appliquerSuggestion(int $rang): void
+    {
+        if (! isset($this->suggestions[$rang])) {
+            return;
+        }
+
+        if ($this->cibleSuggestion === 'attention') {
+            $this->nouveauLibelle = $this->suggestions[$rang];
+            $this->nouvelleRubrique = FlashItemType::Attention->value;
+        } else {
+            $this->synthese = $this->suggestions[$rang];
+        }
+
+        $this->suggestions = [];
     }
 
     public function ajouterLigne(): void
@@ -282,6 +354,28 @@ new class extends Component {
                     <flux:input wire:model="nouvelleDate" type="date" label="Date" class="w-40" />
                     <flux:input wire:model="nouveauLibelle" label="Libellé" class="min-w-64 flex-1" required />
                     <flux:button type="submit" variant="primary" icon="plus">Ajouter</flux:button>
+
+                    @if ($this->assistantDisponible())
+                        <div class="w-full">
+                            <flux:button
+                                type="button"
+                                wire:click="suggererPointAttention"
+                                wire:loading.attr="disabled"
+                                wire:target="suggererPointAttention"
+                                icon="sparkles"
+                                variant="ghost"
+                                size="xs"
+                            >
+                                Proposer un point d'attention
+                            </flux:button>
+
+                            <flux:text size="sm" wire:loading wire:target="suggererPointAttention">Rédaction en cours…</flux:text>
+
+                            @if ($suggestions !== [] && $cibleSuggestion === 'attention')
+                                <x-suggestion-list :suggestions="$suggestions" class="mt-2" />
+                            @endif
+                        </div>
+                    @endif
                 </form>
             </div>
 
@@ -311,6 +405,29 @@ new class extends Component {
                 <section class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
                     <flux:heading size="lg">Synthèse</flux:heading>
                     <flux:textarea wire:model="synthese" rows="8" class="mt-3" placeholder="Message clé à retenir pour le comité…" />
+
+                    @if ($this->modifiable() && $this->assistantDisponible())
+                        <div class="mt-2 flex items-center gap-2">
+                            <flux:button
+                                type="button"
+                                wire:click="suggererSynthese"
+                                wire:loading.attr="disabled"
+                                wire:target="suggererSynthese"
+                                icon="sparkles"
+                                variant="ghost"
+                                size="xs"
+                            >
+                                Proposer une synthèse
+                            </flux:button>
+
+                            <flux:text size="sm" wire:loading wire:target="suggererSynthese">Rédaction en cours…</flux:text>
+                        </div>
+
+                        @if ($suggestions !== [] && $cibleSuggestion === 'synthese')
+                            <x-suggestion-list :suggestions="$suggestions" class="mt-2" />
+                        @endif
+                    @endif
+
                     <flux:input wire:model="lienPlanning" type="url" label="Lien planning" class="mt-3" placeholder="https://…" />
                 </section>
             </div>

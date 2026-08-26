@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\HasAttachments;
 use App\Enums\ProjectCategory;
 use App\Enums\ProjectStatus;
 use App\Enums\ProjectType;
@@ -50,6 +51,7 @@ use Illuminate\Support\Collection;
  * @property-read Collection<int, Milestone> $milestones
  * @property-read Collection<int, ProjectMember> $members
  * @property-read Collection<int, FlashReport> $flashReports
+ * @property-read Collection<int, Attachment> $documents
  */
 #[Fillable([
     'code', 'nom', 'description', 'client_id', 'type_projet', 'categorie', 'ordre_comite',
@@ -60,6 +62,8 @@ use Illuminate\Support\Collection;
 ])]
 class Project extends Model
 {
+    use HasAttachments;
+
     /** @use HasFactory<ProjectFactory> */
     use HasFactory;
 
@@ -161,6 +165,18 @@ class Project extends Model
     public function tasks(): HasMany
     {
         return $this->hasMany(Task::class);
+    }
+
+    /**
+     * Toutes les pièces jointes du projet, quel que soit leur point de dépôt :
+     * le projet lui-même, un livrable ou une tâche. À distinguer de
+     * `attachments()`, qui ne rend que celles déposées sur le projet.
+     *
+     * @return HasMany<Attachment, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(Attachment::class)->latest();
     }
 
     /** @return HasMany<Deliverable, $this> */

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\HasAttachments;
 use App\Enums\DeliverableStatus;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -37,6 +38,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class Deliverable extends Model
 {
+    use HasAttachments;
+
     /** @return array<string, string> */
     protected function casts(): array
     {
