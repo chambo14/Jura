@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Livewire\Mechanisms\HandleRequests\EndpointResolver;
 
 /**
  * Met le site à jour après un dépôt de fichiers.
@@ -56,11 +57,44 @@ class MettreAJourCommand extends Command
             $this->call('config:cache');
             $this->call('route:cache');
             $this->call('view:cache');
+
+            $this->verifierLesRoutesLivewire();
         }
 
         $this->newLine();
         $this->components->info($this->option('pretend') ? 'Rien n’a été appliqué.' : 'Site à jour.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Livewire dérive l'adresse de ses points d'entrée — script, mise à jour,
+     * téléversement — d'une empreinte de `APP_KEY`. Si la table des routes est
+     * figée avec une empreinte et que les pages en réclament une autre, le
+     * script répond 404 : les pages s'affichent, et plus aucun bouton ne
+     * réagit. La panne est muette côté serveur, d'où cette vérification.
+     *
+     * Un cache de routes incohérent vaut moins qu'une route résolue à chaud :
+     * on le retire plutôt que de laisser l'application inerte.
+     */
+    private function verifierLesRoutesLivewire(): void
+    {
+        if (! class_exists(EndpointResolver::class)) {
+            return;
+        }
+
+        $prefixe = ltrim(EndpointResolver::prefix(), '/');
+        $cache = $this->laravel->getCachedRoutesPath();
+
+        if (! is_file($cache) || str_contains((string) file_get_contents($cache), $prefixe)) {
+            return;
+        }
+
+        $this->call('route:clear');
+
+        $this->components->warn(
+            "Le cache des routes ne reconnaissait pas les adresses Livewire ({$prefixe}) : il a été retiré. "
+            .'Les pages restent fonctionnelles ; relancez cette commande après avoir vérifié APP_KEY dans le .env.'
+        );
     }
 }
