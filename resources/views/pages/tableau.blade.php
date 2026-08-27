@@ -12,6 +12,7 @@ use App\Services\AttachmentService;
 use App\Services\AvancementService;
 use App\Services\ChargeService;
 use App\Support\Avancement\AvancementEquipe;
+use App\Support\Echeances\Echeances;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -207,7 +208,7 @@ new class extends Component {
     /**
      * Compteurs de tête : ce que le comité regarde en premier.
      *
-     * @return array<string, int>
+     * @return array{total: int, en_cours: int, bloquees: int, echeances: Echeances}
      */
     #[Computed]
     public function synthese(): array
@@ -218,7 +219,7 @@ new class extends Component {
             'total' => $cartes->count(),
             'en_cours' => $cartes->where('statut', ProgressStatus::EnCours)->count(),
             'bloquees' => $cartes->where('statut', ProgressStatus::Bloque)->count(),
-            'retard' => $cartes->filter(fn (Task $carte) => $carte->enRetard())->count(),
+            'echeances' => Echeances::de($cartes),
         ];
     }
 
@@ -683,7 +684,14 @@ new class extends Component {
         <x-stat label="Cartes" :value="$this->synthese()['total']" icon="rectangle-stack" color="blue" />
         <x-stat label="En cours" :value="$this->synthese()['en_cours']" icon="play" color="violet" />
         <x-stat label="Bloquées" :value="$this->synthese()['bloquees']" icon="exclamation-triangle" color="red" />
-        <x-stat label="En retard" :value="$this->synthese()['retard']" icon="clock" color="amber" />
+        @php $echeances = $this->synthese()['echeances']; @endphp
+        <x-stat
+            label="En retard"
+            :value="$echeances->valeur()"
+            :sub="$echeances->precision()"
+            icon="clock"
+            :color="$echeances->couleur()"
+        />
     </div>
 
     {{-- Filtres --}}

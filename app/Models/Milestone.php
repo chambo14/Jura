@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Concerns\SuitUneEcheance;
+use App\Contracts\PorteUneEcheance;
 use App\Enums\GovernanceBody;
 use App\Enums\ProgressStatus;
 use Carbon\CarbonInterface;
@@ -29,8 +31,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'project_id', 'project_phase_id', 'libelle', 'description', 'date_prevue',
     'date_prevue_initiale', 'date_reelle', 'statut', 'critique', 'instance',
 ])]
-class Milestone extends Model
+class Milestone extends Model implements PorteUneEcheance
 {
+    use SuitUneEcheance;
+
     /** @return array<string, string> */
     protected function casts(): array
     {
@@ -56,9 +60,14 @@ class Milestone extends Model
         return $this->belongsTo(ProjectPhase::class);
     }
 
-    public function enRetard(): bool
+    public function echeance(): ?CarbonInterface
     {
-        return ! $this->statut->isClosed() && $this->date_prevue->isPast();
+        return $this->date_prevue;
+    }
+
+    public function echeanceClose(): bool
+    {
+        return $this->statut->isClosed();
     }
 
     /**

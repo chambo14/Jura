@@ -6,6 +6,7 @@ use App\Models\Phase;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\ProjectProvisioner;
+use App\Support\Echeances\Echeances;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -95,7 +96,7 @@ new class extends Component {
         return [
             'total' => $tous->count(),
             'disponibles' => $tous->filter(fn ($l) => $l->estDisponible())->count(),
-            'retard' => $tous->filter(fn ($l) => $l->enRetard())->count(),
+            'echeances' => Echeances::de($tous),
             'obligatoires_manquants' => $tous->filter(fn ($l) => $l->obligatoire && $l->statut->isOutstanding())->count(),
         ];
     }
@@ -260,7 +261,16 @@ new class extends Component {
         <x-stat label="Livrables attendus" :value="$this->synthese()['total']" icon="document-text" color="blue" />
         <x-stat label="Disponibles" :value="$this->synthese()['disponibles']" icon="check-circle" color="green" />
         <x-stat label="Obligatoires manquants" :value="$this->synthese()['obligatoires_manquants']" icon="exclamation-triangle" color="amber" />
-        <x-stat label="En retard" :value="$this->synthese()['retard']" icon="clock" color="red" />
+        {{-- Sans échéance saisie, ce compteur n'affiche pas « 0 » : il dit qu'il
+             ne mesure rien. --}}
+        @php $echeances = $this->synthese()['echeances']; @endphp
+        <x-stat
+            label="En retard"
+            :value="$echeances->valeur()"
+            :sub="$echeances->precision()"
+            icon="clock"
+            :color="$echeances->couleur()"
+        />
     </div>
 
     <div class="flex flex-wrap items-end justify-between gap-3">

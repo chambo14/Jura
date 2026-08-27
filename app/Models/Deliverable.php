@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Concerns\HasAttachments;
+use App\Concerns\SuitUneEcheance;
+use App\Contracts\PorteUneEcheance;
 use App\Enums\DeliverableStatus;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -36,9 +38,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'obligatoire', 'date_prevue', 'date_livraison', 'version', 'lien', 'fichier_path',
     'commentaire', 'ordre',
 ])]
-class Deliverable extends Model
+class Deliverable extends Model implements PorteUneEcheance
 {
-    use HasAttachments;
+    use HasAttachments, SuitUneEcheance;
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -83,11 +85,14 @@ class Deliverable extends Model
         return in_array($this->statut, [DeliverableStatus::Soumis, DeliverableStatus::Valide], true);
     }
 
-    public function enRetard(): bool
+    public function echeance(): ?CarbonInterface
     {
-        return $this->statut->isOutstanding()
-            && $this->date_prevue !== null
-            && $this->date_prevue->isPast();
+        return $this->date_prevue;
+    }
+
+    public function echeanceClose(): bool
+    {
+        return ! $this->statut->isOutstanding();
     }
 
     /**

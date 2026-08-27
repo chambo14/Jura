@@ -5,6 +5,7 @@ use App\Enums\MemberRole;
 use App\Enums\ProgressStatus;
 use App\Models\Project;
 use App\Services\ProjectHealthService;
+use App\Support\Echeances\Echeances;
 use App\Support\ProjectHealth;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
@@ -52,10 +53,10 @@ new class extends Component {
         return [
             'livrables_total' => $livrables->count(),
             'livrables_disponibles' => $livrables->filter(fn ($l) => $l->estDisponible())->count(),
-            'livrables_retard' => $livrables->filter(fn ($l) => $l->enRetard())->count(),
+            'livrables_echeances' => Echeances::de($livrables),
             'taches_ouvertes' => $taches->filter(fn ($t) => ! $t->statut->isClosed())->count(),
-            'taches_retard' => $taches->filter(fn ($t) => $t->enRetard())->count(),
-            'jalons_retard' => $this->project->milestones->filter(fn ($j) => $j->enRetard())->count(),
+            'taches_echeances' => Echeances::de($taches),
+            'jalons_echeances' => Echeances::de($this->project->milestones),
             'ressources' => $this->project->members()->distinct('user_id')->count('user_id'),
         ];
     }
@@ -213,15 +214,35 @@ new class extends Component {
 
         {{-- Compteurs opérationnels --}}
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            @php
+                $livrablesEcheances = $this->compteurs()['livrables_echeances'];
+                $tachesEcheances = $this->compteurs()['taches_echeances'];
+                $jalonsEcheances = $this->compteurs()['jalons_echeances'];
+            @endphp
+
+            {{-- Chaque mention de retard dit sur quoi elle se fonde : un projet
+                 sans échéance saisie n'est pas un projet sans retard. --}}
             <x-stat
                 label="Livrables disponibles"
                 :value="$this->compteurs()['livrables_disponibles'].' / '.$this->compteurs()['livrables_total']"
-                :sub="$this->compteurs()['livrables_retard'].' en retard'"
+                :sub="$livrablesEcheances->mesurable() ? $livrablesEcheances->enRetard.' en retard' : 'Retards non mesurables'"
                 icon="document-text"
                 color="violet"
             />
-            <x-stat label="Tâches ouvertes" :value="$this->compteurs()['taches_ouvertes']" :sub="$this->compteurs()['taches_retard'].' en retard'" icon="check-circle" color="blue" />
-            <x-stat label="Jalons en retard" :value="$this->compteurs()['jalons_retard']" icon="flag" color="amber" />
+            <x-stat
+                label="Tâches ouvertes"
+                :value="$this->compteurs()['taches_ouvertes']"
+                :sub="$tachesEcheances->mesurable() ? $tachesEcheances->enRetard.' en retard' : 'Retards non mesurables'"
+                icon="check-circle"
+                color="blue"
+            />
+            <x-stat
+                label="Jalons en retard"
+                :value="$jalonsEcheances->valeur()"
+                :sub="$jalonsEcheances->precision()"
+                icon="flag"
+                :color="$jalonsEcheances->couleur()"
+            />
             <x-stat label="Ressources affectées" :value="$this->compteurs()['ressources']" icon="users" color="green" />
         </div>
     </div>

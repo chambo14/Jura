@@ -6,6 +6,7 @@ use App\Models\ProjectPhase;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\ChargeService;
+use App\Support\Echeances\Echeances;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -82,7 +83,7 @@ new class extends Component {
             'total' => $toutes->count(),
             'terminees' => $toutes->where('statut', ProgressStatus::Termine)->count(),
             'en_cours' => $toutes->where('statut', ProgressStatus::EnCours)->count(),
-            'retard' => $toutes->filter(fn (Task $t) => $t->enRetard())->count(),
+            'echeances' => Echeances::de($toutes),
         ];
     }
 
@@ -256,7 +257,14 @@ new class extends Component {
         <x-stat label="Tâches" :value="$this->synthese()['total']" icon="check-circle" color="blue" />
         <x-stat label="Terminées" :value="$this->synthese()['terminees']" icon="check" color="green" />
         <x-stat label="En cours" :value="$this->synthese()['en_cours']" icon="play" color="violet" />
-        <x-stat label="En retard" :value="$this->synthese()['retard']" icon="clock" color="red" />
+        @php $echeances = $this->synthese()['echeances']; @endphp
+        <x-stat
+            label="En retard"
+            :value="$echeances->valeur()"
+            :sub="$echeances->precision()"
+            icon="clock"
+            :color="$echeances->couleur()"
+        />
     </div>
 
     <div class="flex flex-wrap items-end justify-between gap-3">

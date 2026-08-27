@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Concerns\HasAttachments;
+use App\Concerns\SuitUneEcheance;
+use App\Contracts\PorteUneEcheance;
 use App\Enums\ProgressStatus;
 use App\Enums\TaskPriority;
 use Carbon\CarbonInterface;
@@ -41,9 +43,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'date_debut', 'date_echeance', 'date_realisation', 'avancement_pct', 'charge_jours', 'statut',
     'priorite', 'ordre',
 ])]
-class Task extends Model
+class Task extends Model implements PorteUneEcheance
 {
-    use HasAttachments;
+    use HasAttachments, SuitUneEcheance;
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -104,11 +106,14 @@ class Task extends Model
         return [$this->date_debut ?? $fin, $fin];
     }
 
-    public function enRetard(): bool
+    public function echeance(): ?CarbonInterface
     {
-        return ! $this->statut->isClosed()
-            && $this->date_echeance !== null
-            && $this->date_echeance->isPast();
+        return $this->date_echeance;
+    }
+
+    public function echeanceClose(): bool
+    {
+        return $this->statut->isClosed();
     }
 
     /**
