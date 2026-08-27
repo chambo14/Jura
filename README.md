@@ -266,6 +266,8 @@ Deux fonctions se règlent dans `.env`, l'application marchant sans elles :
 | `MPM_UPDATE_TOKEN` | Arme la page de mise à jour sans ligne de commande (voir plus bas) ; vide, elle répond 404 |
 | `IA_MODELE` | Modèle interrogé par l'assistant (`claude-opus-5` par défaut) |
 | `IA_EFFORT` | Effort de raisonnement : `low` par défaut, suffisant pour reformuler. À vider si `IA_MODELE` pointe vers une génération antérieure, qui rejette ce paramètre |
+| `MPM_CODE_PREFIXE` | Préfixe des codes projets attribués automatiquement (`MLP` par défaut) — chaque préfixe a sa propre numérotation |
+| `MPM_CODE_CHIFFRES` | Longueur du compteur (`4` par défaut : `MLP-0001`) |
 
 ### Lancer le serveur
 

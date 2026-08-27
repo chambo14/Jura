@@ -7,19 +7,26 @@ use App\Models\Client;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\AvancementService;
+use App\Services\ProjectCodeGenerator;
 use App\Services\ProjectProvisioner;
 use App\Support\Audit\Audit;
 use Flux\Flux;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
-new class extends Component {
+new class extends Component
+{
     public ?Project $project = null;
 
     public string $code = '';
+
+    /** Le code a-t-il été saisi à la main plutôt qu'attribué ? */
+    public bool $codePersonnalise = false;
 
     public string $nom = '';
 
@@ -63,11 +70,18 @@ new class extends Component {
 
     public function mount(?Project $project = null): void
     {
+        if (! $project?->exists) {
+            // Le code est attribué d'emblée, pour que la personne qui remplit
+            // le formulaire sache sous quel numéro le projet existera.
+            $this->code = app(ProjectCodeGenerator::class)->suivant();
+        }
+
         if ($project?->exists) {
             $this->authorize('update', $project);
 
             $this->project = $project;
             $this->code = $project->code;
+            $this->codePersonnalise = true;
             $this->nom = $project->nom;
             $this->description = $project->description ?? '';
             $this->clientId = (string) $project->client_id;
@@ -142,20 +156,56 @@ new class extends Component {
     }
 
     /**
-     * Propose un code lisible à partir du client et du nom du projet.
+     * Reprend la main sur le code attribué.
+     *
+     * L'attribution automatique couvre le cas courant, mais un projet repris
+     * d'un suivi antérieur ou dont le code figure à un contrat doit pouvoir
+     * garder le sien.
      */
-    public function updatedNom(): void
+    public function personnaliserLeCode(): void
     {
-        if ($this->project || $this->code !== '') {
-            return;
+        $this->codePersonnalise = true;
+    }
+
+    /**
+     * Rend la main : le projet reprend le prochain code de la suite.
+     */
+    public function reprendreLeCodeAutomatique(): void
+    {
+        $this->codePersonnalise = false;
+        $this->code = app(ProjectCodeGenerator::class)->suivant();
+        $this->resetValidation('code');
+    }
+
+    /**
+     * Crée le projet, en redemandant un numéro si la place vient d'être prise.
+     *
+     * Deux personnes qui ouvrent le formulaire en même temps y lisent le même
+     * code : c'est l'index unique de la table qui tranche à l'enregistrement.
+     * Plutôt que de renvoyer une erreur à celle qui arrive seconde, on lui
+     * attribue le numéro suivant — elle n'y est pour rien.
+     *
+     * Un code saisi à la main, lui, n'est pas remplacé : c'est un choix, et il
+     * revient à son auteur d'en changer.
+     *
+     * @param  array<string, mixed>  $attributs
+     */
+    private function creerAvecUnCodeLibre(array $attributs): Project
+    {
+        for ($tentative = 1; $tentative <= 3; $tentative++) {
+            try {
+                return Project::create($attributs);
+            } catch (UniqueConstraintViolationException $collision) {
+                if ($this->codePersonnalise || $tentative === 3) {
+                    throw $collision;
+                }
+
+                $attributs['code'] = app(ProjectCodeGenerator::class)->suivant();
+                $this->code = $attributs['code'];
+            }
         }
 
-        $sigle = $this->clients()->firstWhere('id', (int) $this->clientId)?->sigle;
-
-        $this->code = Str::upper(Str::slug(
-            trim(($sigle ? $sigle.'-' : '').Str::limit($this->nom, 24, '')),
-            '-',
-        ));
+        throw new RuntimeException('Aucun code projet disponible.');
     }
 
     public function enregistrer(): void
@@ -242,7 +292,7 @@ new class extends Component {
 
             Flux::toast(variant: 'success', text: 'Projet mis à jour.');
         } else {
-            $this->project = Project::create($attributs);
+            $this->project = $this->creerAvecUnCodeLibre($attributs);
             $provisioner->provisionner($this->project);
 
             Flux::toast(variant: 'success', text: 'Projet créé : le référentiel MPM a été déroulé.');
@@ -251,7 +301,7 @@ new class extends Component {
         $this->redirectRoute('projets.show', $this->project, navigate: true);
     }
 
-    public function rendering(\Illuminate\View\View $view): void
+    public function rendering(View $view): void
     {
         $view->title($this->project ? 'Modifier '.$this->project->nom : 'Nouveau projet');
     }
@@ -283,7 +333,34 @@ new class extends Component {
                     <flux:input wire:model.blur="nom" label="Nom du projet" required />
 
                     <div class="grid gap-4 sm:grid-cols-2">
-                        <flux:input wire:model="code" label="Code projet" placeholder="CLIENT-PROJET" required />
+                        {{-- Le code est attribué par la suite MLP-0001, MLP-0002…
+                             Il reste repris en main pour un projet dont le code
+                             figure à un contrat ou vient d'un suivi antérieur. --}}
+                        <div>
+                            <flux:input
+                                wire:model="code"
+                                label="Code projet"
+                                :readonly="! $codePersonnalise"
+                                :variant="$codePersonnalise ? null : 'filled'"
+                                required
+                            />
+
+                            <div class="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                @if ($codePersonnalise)
+                                    @unless ($project)
+                                        Code saisi à la main.
+                                        <button type="button" wire:click="reprendreLeCodeAutomatique" class="underline hover:text-zinc-700 dark:hover:text-zinc-200">
+                                            Revenir au code automatique
+                                        </button>
+                                    @endunless
+                                @else
+                                    Attribué automatiquement.
+                                    <button type="button" wire:click="personnaliserLeCode" class="underline hover:text-zinc-700 dark:hover:text-zinc-200">
+                                        Choisir un autre code
+                                    </button>
+                                @endif
+                            </div>
+                        </div>
 
                         <flux:select wire:model="typeProjet" label="Type de projet">
                             @foreach (ProjectType::cases() as $cas)
