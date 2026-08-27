@@ -218,7 +218,13 @@
                     Lien planning
                 </a>
             @endif
-            <span>Chef de projet : {{ $report->auteur?->name ?? $project->chefProjet?->name ?? '—' }}</span>
+            {{-- Le chef de projet est celui de la fiche projet. L'auteur du rapport
+                 est souvent une autre personne : l'afficher sous ce libellé
+                 attribuait le projet à qui l'avait saisi. --}}
+            <span>Chef de projet : {{ $project->chefProjet?->name ?? '—' }}</span>
+            @if ($report->auteur && $report->auteur->isNot($project->chefProjet))
+                <span class="text-zinc-500">Rapport rédigé par {{ $report->auteur->name }}</span>
+            @endif
         </span>
     </footer>
 </article>

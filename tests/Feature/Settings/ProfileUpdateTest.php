@@ -54,35 +54,20 @@ class ProfileUpdateTest extends TestCase
         $this->assertNotNull($user->refresh()->email_verified_at);
     }
 
-    public function test_user_can_delete_their_account(): void
+    /**
+     * Un compte porte des projets, des cartes et des flash reports : le laisser
+     * se supprimer lui-même laisserait tout cela sans responsable. Le retrait
+     * d'un collaborateur est une opération de la Direction des Projets, qui
+     * désactive le compte sans effacer son historique.
+     */
+    public function test_un_utilisateur_ne_peut_plus_supprimer_son_compte(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAs($user);
-
-        $response = Livewire::test('pages::settings.delete-user-modal')
-            ->set('password', 'password')
-            ->call('deleteUser');
-
-        $response
-            ->assertHasNoErrors()
-            ->assertRedirect('/');
-
-        $this->assertNull($user->fresh());
-        $this->assertFalse(auth()->check());
-    }
-
-    public function test_correct_password_must_be_provided_to_delete_account(): void
-    {
-        $user = User::factory()->create();
-
-        $this->actingAs($user);
-
-        $response = Livewire::test('pages::settings.delete-user-modal')
-            ->set('password', 'wrong-password')
-            ->call('deleteUser');
-
-        $response->assertHasErrors(['password']);
+        $this->actingAs($user)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertDontSee('delete-user-button');
 
         $this->assertNotNull($user->fresh());
     }

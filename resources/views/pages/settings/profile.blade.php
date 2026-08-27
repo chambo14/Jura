@@ -11,7 +11,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Profile settings')] class extends Component {
+new #[Title('Réglages du profil')] class extends Component {
     use ProfileValidationRules;
 
     public string $name = '';
@@ -71,12 +71,6 @@ new #[Title('Profile settings')] class extends Component {
         return Auth::user() instanceof MustVerifyEmail && ! Auth::user()->hasVerifiedEmail();
     }
 
-    #[Computed]
-    public function showDeleteUser(): bool
-    {
-        return ! Auth::user() instanceof MustVerifyEmail
-            || (Auth::user() instanceof MustVerifyEmail && Auth::user()->hasVerifiedEmail());
-    }
     /* @end-chisel-email-verification */
 }; ?>
 
@@ -123,12 +117,10 @@ new #[Title('Profile settings')] class extends Component {
             </div>
         </form>
 
-        {{-- @chisel-email-verification --}}
-        @if ($this->showDeleteUser)
-        {{-- @end-chisel-email-verification --}}
-            <livewire:pages::settings.delete-user-form />
-        {{-- @chisel-email-verification --}}
-        @endif
-        {{-- @end-chisel-email-verification --}}
+        {{-- Un compte ne se supprime pas soi-même : il porte des projets, des
+             cartes, des flash reports et des dépôts de fichiers, et sa
+             disparition laisserait tout cela sans responsable. Le retrait d'un
+             collaborateur passe par la Direction des Projets, qui désactive le
+             compte depuis l'écran « Utilisateurs » — l'historique reste lisible. --}}
     </x-pages::settings.layout>
 </section>

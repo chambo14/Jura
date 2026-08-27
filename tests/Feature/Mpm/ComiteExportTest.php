@@ -13,6 +13,7 @@ use App\Services\FlashReportBuilder;
 use Database\Seeders\MpmReferentialSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Date;
+use Livewire\Livewire;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -145,6 +146,31 @@ class ComiteExportTest extends TestCase
             ->get(route('comite', ['semaine' => self::LUNDI]))
             ->assertOk()
             ->assertSee(e(route('comite.export', ['semaine' => self::LUNDI, 'brouillons' => 1])), escape: false);
+    }
+
+    /**
+     * Le pied de fiche affichait l'auteur du rapport sous le libellé « Chef de
+     * projet », attribuant le projet à qui l'avait saisi — et contredisant
+     * l'en-tête de la même diapositive.
+     */
+    public function test_la_fiche_comite_nomme_le_chef_de_projet_pas_lauteur_du_rapport(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create(['name' => 'Siaka KONÉ']);
+        $redacteur = User::factory()->role(UserRole::Membre)->create(['name' => 'Awa TRAORÉ']);
+
+        $projet = $this->projetAvecRapport();
+        $projet->update(['chef_projet_id' => $chef->id]);
+        $projet->flashReports()->update(['auteur_id' => $redacteur->id]);
+
+        // La séquence est : titre, intercalaire de rubrique, puis la fiche.
+        $ecran = Livewire::actingAs(User::factory()->role(UserRole::Direction)->create())
+            ->test('pages::comite', ['semaine' => self::LUNDI])
+            ->set('semaine', self::LUNDI)
+            ->set('index', 2);
+
+        $ecran->assertSee('Chef de projet : Siaka KONÉ', escape: false);
+        $ecran->assertSee('Rapport rédigé par Awa TRAORÉ', escape: false);
+        $ecran->assertDontSee('Chef de projet : Awa TRAORÉ', escape: false);
     }
 
     public function test_lexport_est_ferme_aux_visiteurs(): void
