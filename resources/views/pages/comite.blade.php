@@ -177,7 +177,7 @@ class extends Component {
                 icon="arrow-down-tray"
                 variant="ghost"
                 size="sm"
-                :disabled="$this->rapports()->isEmpty()"
+                :disabled="$this->diapositives()->count() <= 1"
                 title="Télécharger la présentation au format PowerPoint"
             >
                 PowerPoint
@@ -380,7 +380,7 @@ class extends Component {
     </main>
 
     {{-- Sommaire cliquable --}}
-    @if ($this->rapports()->isNotEmpty())
+    @if ($this->diapositives()->count() > 1)
         <footer class="flex flex-wrap items-center gap-1.5 border-t border-zinc-200 bg-zinc-50 px-5 py-2.5 dark:border-zinc-800 dark:bg-zinc-900">
             @foreach ($this->diapositives() as $rang => $diapo)
                 @if ($diapo->type === 'titre')
@@ -404,7 +404,7 @@ class extends Component {
                             'text-zinc-600 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-800' => $index !== $rang,
                         ])
                     >{{ str_pad((string) $diapo->categorie->rang(), 2, '0', STR_PAD_LEFT) }}</button>
-                @else
+                @elseif ($diapo->type === 'projet')
                     <button
                         type="button"
                         wire:click="allerA({{ $rang }})"
@@ -424,6 +424,24 @@ class extends Component {
                             ])></span>
                         @endif
                         {{ $diapo->rapport->project->code }}
+                    </button>
+                @else
+                    {{-- Un projet sans flash report : il figure au sommaire comme les
+                         autres, avec une pastille creuse qui dit qu'aucune santé n'a
+                         été déclarée cette semaine. --}}
+                    <button
+                        type="button"
+                        wire:click="allerA({{ $rang }})"
+                        wire:key="sans-rapport-{{ $diapo->projet->id }}"
+                        title="Pas de flash report cette semaine"
+                        @class([
+                            'flex items-center gap-1.5 rounded px-2 py-1 text-xs italic transition',
+                            'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900' => $index === $rang,
+                            'text-zinc-400 hover:bg-zinc-200 dark:text-zinc-500 dark:hover:bg-zinc-800' => $index !== $rang,
+                        ])
+                    >
+                        <span class="size-1.5 rounded-full border border-zinc-300 dark:border-zinc-600"></span>
+                        {{ $diapo->projet->code }}
                     </button>
                 @endif
             @endforeach

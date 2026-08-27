@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Mpm;
 
+use App\Models\FlashReport;
 use App\Models\User;
 use Database\Seeders\MpmReferentialSeeder;
 use Database\Seeders\PortefeuilleDemoSeeder;
@@ -75,5 +76,25 @@ class ComiteRenduTest extends TestCase
         $this->actingAs($chef)
             ->get(route('comite', ['semaine' => '2026-08-10']))
             ->assertOk();
+    }
+
+    /**
+     * Le cas mixte, celui du portefeuille réel : une semaine où une partie des
+     * projets a rendu son flash report et l'autre non. Le sommaire du bas
+     * énumère alors des diapositives des deux natures, et celles qui constatent
+     * une absence ne portent aucun rapport.
+     */
+    public function test_lecran_saffiche_quand_une_partie_des_projets_na_pas_rendu_son_rapport(): void
+    {
+        $rapport = FlashReport::query()
+            ->whereDate('semaine_du', '2026-08-10')
+            ->firstOrFail();
+        $projet = $rapport->project;
+        $rapport->delete();
+
+        $this->actingAs($this->direction)
+            ->get(route('comite', ['semaine' => '2026-08-10']))
+            ->assertOk()
+            ->assertSee($projet->code);
     }
 }
