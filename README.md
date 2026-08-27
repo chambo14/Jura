@@ -13,12 +13,39 @@ hebdomadaire** présenté en comité.
 |---|---|
 | **Tableau de bord** | Portefeuille consolidé : avancement, échéances, santé de chaque projet, alertes critiques |
 | **Projets** | Liste filtrable (type, statut, santé, chef de projet) et création d'un projet |
-| **Fiche projet** | 8 onglets : Synthèse · Planning & délais · Ressources · Livrables · Tâches · Tableau · Documents · Flash reports |
+| **Fiche projet** | 9 onglets : Synthèse · Planning & délais · Ressources · Livrables · Tâches · Tableau · Documents · Flash reports · Historique |
 | **Tableau des équipes** | Kanban du portefeuille : cartes déplaçables entre colonnes, filtres par équipe métier, discussion et pièces jointes par carte |
 | **Flash reports** | Couverture hebdomadaire du portefeuille, préparation en masse des rapports manquants |
 | **Plan de charge** | Charge par collaborateur, au mois ou à la semaine, avec fiche individuelle et histogramme prévisionnel |
 | **Mode comité** | Présentation plein écran : diapositive de titre, intercalaires de rubrique, une diapositive par projet, navigation au clavier (← →) |
 | **Référentiel MPM** | Les 8 phases, les livrables types par phase, les bandeaux d'avancement, la gouvernance |
+
+### Créer un projet
+
+Le **code** est attribué automatiquement, sous la forme `MLP-0001`, `MLP-0002`. Le préfixe
+se règle dans le `.env` (`MPM_CODE_PREFIXE`) et chaque préfixe a sa propre numérotation.
+Les codes hérités d'un suivi antérieur, qui ne portent pas le préfixe, sont ignorés du
+compteur et conservés tels quels. Un numéro libéré par une suppression n'est jamais
+réattribué : deux projets différents deviendraient indiscernables dans les comptes rendus
+déjà diffusés. Le champ se reprend en main d'un clic pour un projet dont le code figure à
+un contrat.
+
+Les quatre rôles du bloc **Pilotage** ne proposent que les comptes dont le profil le
+prévoit : chef de projet et back-up parmi les chefs de projet, sponsor parmi les sponsors,
+référent technique parmi les membres d'équipe et les chefs de projet. La Direction reste
+éligible partout, puisqu'elle supplée. La règle est revérifiée à l'enregistrement, le
+filtrage d'une liste déroulante ne protégeant que l'écran. Une personne déjà désignée
+avant cette règle reste acceptée : la fiche ne casse pas sur un existant dont elle hérite.
+
+Les **étapes** du bandeau d'avancement se cochent à la création comme à la modification :
+tous les projets ne passent pas par le pilote ni la généralisation. Elles sont toutes
+retenues par défaut, et changer de type de projet recharge le catalogue correspondant —
+13 étapes en déploiement, 14 en développement et en intégration. Une étape décochée sur
+laquelle du travail est consigné — démarrée, datée ou annotée — n'est pas retirée : elle
+témoigne de quelque chose, et l'écran annonce sa conservation avant l'enregistrement.
+
+Les 8 phases MPM ne se choisissent pas : elles sont l'ossature de la méthodologie et
+s'appliquent à tout projet.
 
 ### Suivi des délais
 

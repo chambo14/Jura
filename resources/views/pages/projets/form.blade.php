@@ -1,11 +1,14 @@
 <?php
 
+use App\Enums\MemberRole;
 use App\Enums\ProjectCategory;
 use App\Enums\ProjectStatus;
+use App\Enums\ProgressStatus;
 use App\Enums\ProjectType;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\User;
+use App\Models\WorkflowStep;
 use App\Services\AvancementService;
 use App\Services\ProjectCodeGenerator;
 use App\Services\ProjectProvisioner;
@@ -68,6 +71,13 @@ new class extends Component
 
     public string $referentTechniqueId = '';
 
+    /**
+     * Étapes du bandeau d'avancement retenues pour ce projet.
+     *
+     * @var array<int, int>
+     */
+    public array $etapes = [];
+
     public function mount(?Project $project = null): void
     {
         if (! $project?->exists) {
@@ -100,6 +110,14 @@ new class extends Component
             $this->backUpId = (string) ($project->back_up_id ?? '');
             $this->sponsorId = (string) ($project->sponsor_id ?? '');
             $this->referentTechniqueId = (string) ($project->referent_technique_id ?? '');
+            $this->etapes = $project->steps()->pluck('workflow_step_id')->all();
+
+            // Un projet repris d'un import ou d'un jeu de données n'a parfois
+            // aucune étape instanciée : la fiche propose alors le catalogue
+            // complet plutôt que de refuser l'enregistrement.
+            if ($this->etapes === []) {
+                $this->cocherToutesLesEtapes();
+            }
 
             return;
         }
@@ -110,6 +128,7 @@ new class extends Component
         $this->categorie = ProjectCategory::Autres->value;
         $this->statut = ProjectStatus::EnPreparation->value;
         $this->chefProjetId = (string) auth()->id();
+        $this->cocherToutesLesEtapes();
     }
 
     /**
@@ -153,6 +172,143 @@ new class extends Component
     public function utilisateurs(): Collection
     {
         return User::actifs()->orderBy('name')->get();
+    }
+
+    /**
+     * Personnes proposables pour un rôle du bloc « Pilotage ».
+     *
+     * Le compte déjà désigné sur le projet reste proposé même si son profil a
+     * changé depuis : la fiche ne doit pas effacer une désignation qu'elle
+     * n'aurait fait qu'ouvrir.
+     *
+     * @return Collection<int, User>
+     */
+    public function candidats(MemberRole $role): Collection
+    {
+        return User::actifs()
+            ->pourRoleProjet($role, [(int) $this->valeurDuRole($role)])
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Rôles du bloc « Pilotage » et propriété du formulaire qui les porte.
+     *
+     * @return array<string, MemberRole>
+     */
+    public function rolesDePilotage(): array
+    {
+        return [
+            'chefProjetId' => MemberRole::ChefProjet,
+            'backUpId' => MemberRole::BackUp,
+            'sponsorId' => MemberRole::Sponsor,
+            'referentTechniqueId' => MemberRole::ReferentTechnique,
+        ];
+    }
+
+    /**
+     * Refuse une désignation que le profil du compte ne prévoit pas.
+     *
+     * Une personne déjà désignée sur le projet reste acceptée même si son
+     * profil a changé depuis : la fiche ne casse pas sur un existant qu'elle
+     * n'a pas créé. C'est en la remplaçant qu'on applique la règle.
+     */
+    private function regleDuRole(MemberRole $role): Closure
+    {
+        return function (string $attribut, mixed $valeur, Closure $echouer) use ($role) {
+            if (blank($valeur)) {
+                return;
+            }
+
+            $deja = (int) ($this->project?->{$this->colonneDuRole($role)} ?? 0);
+
+            if ((int) $valeur === $deja) {
+                return;
+            }
+
+            $eligible = User::query()
+                ->whereKey($valeur)
+                ->pourRoleProjet($role)
+                ->exists();
+
+            if (! $eligible) {
+                $echouer("Le profil de ce compte ne permet pas de tenir le rôle « {$role->label()} ».");
+            }
+        };
+    }
+
+    private function colonneDuRole(MemberRole $role): string
+    {
+        return match ($role) {
+            MemberRole::ChefProjet => 'chef_projet_id',
+            MemberRole::BackUp => 'back_up_id',
+            MemberRole::Sponsor => 'sponsor_id',
+            default => 'referent_technique_id',
+        };
+    }
+
+    private function valeurDuRole(MemberRole $role): string
+    {
+        $propriete = array_search($role, $this->rolesDePilotage(), true);
+
+        return $propriete === false ? '' : (string) $this->{$propriete};
+    }
+
+    /**
+     * Étapes proposées par le référentiel pour le type choisi.
+     *
+     * @return Collection<int, WorkflowStep>
+     */
+    #[Computed]
+    public function etapesDisponibles(): Collection
+    {
+        $type = ProjectType::tryFrom($this->typeProjet);
+
+        return $type === null ? collect() : WorkflowStep::forType($type)->get();
+    }
+
+    /**
+     * Changer de type change le catalogue : les étapes de l'ancien n'ont plus
+     * cours, et repartir de la sélection complète évite un bandeau à trous que
+     * personne n'a choisi.
+     */
+    public function updatedTypeProjet(): void
+    {
+        unset($this->etapesDisponibles);
+
+        $this->cocherToutesLesEtapes();
+    }
+
+    public function cocherToutesLesEtapes(): void
+    {
+        $this->etapes = $this->etapesDisponibles()->pluck('id')->all();
+    }
+
+    public function decocherToutesLesEtapes(): void
+    {
+        $this->etapes = [];
+    }
+
+    /**
+     * Une étape décochée sur laquelle du travail est consigné ne peut pas être
+     * retirée : l'écran l'annonce avant l'enregistrement plutôt qu'après.
+     *
+     * @return Collection<int, \App\Models\ProjectStep>
+     */
+    #[Computed]
+    public function etapesIrretirables(): Collection
+    {
+        if (! $this->project) {
+            return collect();
+        }
+
+        return $this->project->steps()
+            ->whereNotIn('workflow_step_id', $this->etapes ?: [0])
+            ->where(fn ($q) => $q->where('statut', '!=', ProgressStatus::NonDemarre->value)
+                ->orWhereNotNull('date_reelle')
+                ->orWhereNotNull('annotation'))
+            ->with('workflowStep')
+            ->get();
     }
 
     /**
@@ -231,12 +387,19 @@ new class extends Component
             'avancement' => ['required', 'numeric', 'min:0', 'max:100'],
             'tauxRealisation' => ['required', 'numeric', 'min:0', 'max:100'],
             'lienPlanning' => ['nullable', 'url', 'max:2048'],
-            'chefProjetId' => ['nullable', 'exists:users,id'],
-            'backUpId' => ['nullable', 'exists:users,id'],
-            'sponsorId' => ['nullable', 'exists:users,id'],
-            'referentTechniqueId' => ['nullable', 'exists:users,id'],
+            // Le filtre des listes déroulantes ne protège que l'écran : la
+            // règle est revérifiée ici, où elle engage la donnée.
+            'chefProjetId' => ['nullable', 'exists:users,id', $this->regleDuRole(MemberRole::ChefProjet)],
+            'backUpId' => ['nullable', 'exists:users,id', $this->regleDuRole(MemberRole::BackUp)],
+            'sponsorId' => ['nullable', 'exists:users,id', $this->regleDuRole(MemberRole::Sponsor)],
+            'referentTechniqueId' => ['nullable', 'exists:users,id', $this->regleDuRole(MemberRole::ReferentTechnique)],
+            // Un projet sans étape n'a pas de bandeau d'avancement, donc rien à
+            // présenter au comité : au moins une est exigée.
+            'etapes' => ['array', 'min:1'],
+            'etapes.*' => ['integer', 'exists:workflow_steps,id'],
         ], attributes: [
             'code' => 'code projet',
+            'etapes' => 'étapes du projet',
             'nom' => 'nom du projet',
             'clientId' => 'client',
             'nouveauClient' => 'nouveau client',
@@ -288,12 +451,26 @@ new class extends Component
                 $this->project->update(['workflow_step_id' => null]);
             }
 
-            $provisioner->provisionner($this->project->refresh());
+            $provisioner->provisionner($this->project->refresh(), $donnees['etapes']);
+
+            // Une étape décochée qui subsiste est une étape que le provisioner a
+            // refusé de retirer, du travail y étant consigné.
+            $conservees = $provisioner->etapesConservees($this->project, $donnees['etapes']);
+
+            $this->etapes = $this->project->steps()->pluck('workflow_step_id')->all();
 
             Flux::toast(variant: 'success', text: 'Projet mis à jour.');
+
+            if ($conservees->isNotEmpty()) {
+                Flux::toast(
+                    variant: 'warning',
+                    text: $conservees->count().' '.($conservees->count() > 1 ? 'étapes écartées ont été conservées' : 'étape écartée a été conservée')
+                        .' : du travail y est consigné.',
+                );
+            }
         } else {
             $this->project = $this->creerAvecUnCodeLibre($attributs);
-            $provisioner->provisionner($this->project);
+            $provisioner->provisionner($this->project, $donnees['etapes']);
 
             Flux::toast(variant: 'success', text: 'Projet créé : le référentiel MPM a été déroulé.');
         }
@@ -433,20 +610,92 @@ new class extends Component
                 <flux:heading size="lg">Pilotage</flux:heading>
                 <flux:subheading>Ces acteurs alimentent l'en-tête du flash report</flux:subheading>
 
+                {{-- Chaque rôle ne propose que les personnes dont le profil le
+                     prévoit : un sponsor n'apparaît pas comme référent technique. --}}
                 <div class="mt-4 space-y-4">
-                    @foreach ([
-                        'chefProjetId' => 'Chef de projet',
-                        'backUpId' => 'Back Up',
-                        'sponsorId' => 'Sponsor',
-                        'referentTechniqueId' => 'Référent technique',
-                    ] as $champ => $label)
-                        <flux:select wire:model="{{ $champ }}" :label="$label" placeholder="Non assigné">
-                            <flux:select.option value="">Non assigné</flux:select.option>
-                            @foreach ($this->utilisateurs() as $utilisateur)
-                                <flux:select.option :value="$utilisateur->id">{{ $utilisateur->name }}</flux:select.option>
-                            @endforeach
-                        </flux:select>
+                    @foreach ($this->rolesDePilotage() as $champ => $role)
+                        @php $candidats = $this->candidats($role); @endphp
+
+                        <div>
+                            <flux:select wire:model="{{ $champ }}" :label="$role->label()" placeholder="Non assigné">
+                                <flux:select.option value="">Non assigné</flux:select.option>
+                                @foreach ($candidats as $utilisateur)
+                                    <flux:select.option :value="$utilisateur->id">
+                                        {{ $utilisateur->name }}@if ($utilisateur->poste) — {{ $utilisateur->poste }}@endif
+                                    </flux:select.option>
+                                @endforeach
+                            </flux:select>
+
+                            @if ($candidats->isEmpty())
+                                <div class="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
+                                    Aucun compte n'a le profil requis. À créer depuis l'écran « Utilisateurs ».
+                                </div>
+                            @endif
+                        </div>
                     @endforeach
+                </div>
+            </section>
+
+            {{-- Étapes du bandeau d'avancement : tous les projets ne passent pas
+                 par le pilote ni la généralisation. --}}
+            <section class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                        <flux:heading size="lg">Étapes du projet</flux:heading>
+                        <flux:subheading>
+                            Le bandeau d'avancement, tel qu'il sera suivi et présenté au comité
+                        </flux:subheading>
+                    </div>
+
+                    <flux:badge size="sm" :color="count($etapes) ? 'blue' : 'amber'">
+                        {{ count($etapes) }} / {{ $this->etapesDisponibles()->count() }}
+                    </flux:badge>
+                </div>
+
+                <div class="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                    <button type="button" wire:click="cocherToutesLesEtapes" class="text-zinc-500 underline hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                        Tout cocher
+                    </button>
+                    <button type="button" wire:click="decocherToutesLesEtapes" class="text-zinc-500 underline hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                        Tout décocher
+                    </button>
+                </div>
+
+                @error('etapes')
+                    <flux:text size="sm" class="mt-2 text-red-600 dark:text-red-400">{{ $message }}</flux:text>
+                @enderror
+
+                <div class="mt-3 space-y-0.5">
+                    @forelse ($this->etapesDisponibles() as $etape)
+                        @php $consignee = $this->etapesIrretirables()->firstWhere('workflow_step_id', $etape->id); @endphp
+
+                        <label
+                            wire:key="etape-{{ $etape->id }}"
+                            class="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        >
+                            <input
+                                type="checkbox"
+                                wire:model.live="etapes"
+                                value="{{ $etape->id }}"
+                                class="mt-0.5 size-4 shrink-0 rounded border-zinc-300 text-blue-600 dark:border-zinc-600 dark:bg-zinc-800"
+                            />
+
+                            <span class="min-w-0 flex-1 text-sm">
+                                <span class="tabular-nums text-zinc-400">{{ str_pad((string) $etape->ordre, 2, '0', STR_PAD_LEFT) }}</span>
+                                <span class="text-zinc-800 dark:text-zinc-200">{{ $etape->libelle }}</span>
+
+                                @if ($consignee)
+                                    <span class="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">
+                                        Du travail y est consigné : l'étape sera conservée même décochée.
+                                    </span>
+                                @endif
+                            </span>
+                        </label>
+                    @empty
+                        <flux:text size="sm" class="text-zinc-500">
+                            Choisissez d'abord un type de projet.
+                        </flux:text>
+                    @endforelse
                 </div>
             </section>
 

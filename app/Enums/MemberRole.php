@@ -71,6 +71,41 @@ enum MemberRole: string
         return [self::ChefProjet, self::BackUp, self::Sponsor, self::ReferentTechnique, self::Testeur];
     }
 
+    /**
+     * Profils d'accès dont les titulaires peuvent tenir ce rôle sur un projet.
+     *
+     * Les listes déroulantes du bloc « Pilotage » proposaient tout le monde :
+     * un sponsor pouvait être désigné référent technique, et réciproquement.
+     * Chaque rôle ne propose désormais que les personnes dont le profil le
+     * prévoit — la Direction restant éligible partout, puisqu'elle supplée.
+     *
+     * Un tableau vide vaut absence de restriction : les rôles d'exécution
+     * (testeur, développeur…) s'attribuent à qui de droit sans filtre.
+     *
+     * @return array<int, string>
+     */
+    public function profilsEligibles(): array
+    {
+        return match ($this) {
+            self::ChefProjet, self::BackUp => [
+                UserRole::Direction->value,
+                UserRole::ChefProjet->value,
+            ],
+            self::Sponsor => [
+                UserRole::Direction->value,
+                UserRole::Sponsor->value,
+            ],
+            // Le référent technique est un membre d'équipe ; un chef de projet
+            // peut aussi tenir ce rôle sur un projet qu'il ne pilote pas.
+            self::ReferentTechnique => [
+                UserRole::Direction->value,
+                UserRole::ChefProjet->value,
+                UserRole::Membre->value,
+            ],
+            default => [],
+        };
+    }
+
     public function color(): string
     {
         return match ($this) {

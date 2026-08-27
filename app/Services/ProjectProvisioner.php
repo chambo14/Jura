@@ -8,6 +8,7 @@ use App\Enums\ProgressStatus;
 use App\Models\DeliverableType;
 use App\Models\Phase;
 use App\Models\Project;
+use App\Models\ProjectStep;
 use App\Models\WorkflowStep;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -19,16 +20,38 @@ use Illuminate\Support\Facades\DB;
 class ProjectProvisioner
 {
     /**
-     * Applique le référentiel à un projet fraîchement créé.
+     * Applique le référentiel à un projet.
+     *
+     * `$etapesRetenues` restreint le bandeau d'avancement aux étapes choisies
+     * pour ce projet — tous les projets ne passent pas par le pilote ni la
+     * généralisation. Sans liste, le type de projet donne l'intégralité de
+     * ses étapes, ce qui reste le comportement des appels existants.
+     *
+     * @param  array<int, int>|null  $etapesRetenues  identifiants de WorkflowStep
      */
-    public function provisionner(Project $project): void
+    public function provisionner(Project $project, ?array $etapesRetenues = null): void
     {
-        DB::transaction(function () use ($project) {
+        DB::transaction(function () use ($project, $etapesRetenues) {
             $this->instancierPhases($project);
-            $this->instancierEtapes($project);
+            $this->instancierEtapes($project, $etapesRetenues);
             $this->instancierLivrables($project);
             $this->synchroniserPilotage($project);
         });
+    }
+
+    /**
+     * Étapes écartées que le projet conserve malgré tout, parce qu'elles
+     * portent une trace de travail.
+     *
+     * @param  array<int, int>  $etapesRetenues
+     * @return Collection<int, ProjectStep>
+     */
+    public function etapesConservees(Project $project, array $etapesRetenues): Collection
+    {
+        return $project->steps()
+            ->whereNotIn('workflow_step_id', $etapesRetenues ?: [0])
+            ->with('workflowStep')
+            ->get();
     }
 
     /**
@@ -66,9 +89,17 @@ class ProjectProvisioner
         }
     }
 
-    private function instancierEtapes(Project $project): void
+    /**
+     * @param  array<int, int>|null  $retenues
+     */
+    private function instancierEtapes(Project $project, ?array $retenues = null): void
     {
         $etapes = WorkflowStep::forType($project->type_projet)->get();
+
+        if ($retenues !== null) {
+            $this->retirerLesEtapesEcartees($project, $retenues);
+            $etapes = $etapes->whereIn('id', $retenues)->values();
+        }
 
         foreach ($etapes as $etape) {
             $project->steps()->firstOrCreate(
@@ -77,10 +108,33 @@ class ProjectProvisioner
             );
         }
 
-        if (! $project->workflow_step_id && $etapes->isNotEmpty()) {
+        // L'étape courante doit rester une étape du projet : écarter celle sur
+        // laquelle il se trouvait laisserait le bandeau pointer dans le vide.
+        $courante = $project->workflow_step_id;
+
+        if ($etapes->isNotEmpty() && (! $courante || ! $etapes->contains('id', $courante))) {
             $project->workflow_step_id = $etapes->first()->id;
             $project->save();
         }
+    }
+
+    /**
+     * Retire les étapes décochées — sauf celles où quelque chose est consigné.
+     *
+     * Une étape démarrée, datée ou annotée témoigne d'un travail réel. La
+     * décocher effacerait cette trace sans que personne l'ait demandé : elle
+     * reste, et l'écran dit pourquoi.
+     *
+     * @param  array<int, int>  $retenues
+     */
+    private function retirerLesEtapesEcartees(Project $project, array $retenues): void
+    {
+        $project->steps()
+            ->whereNotIn('workflow_step_id', $retenues ?: [0])
+            ->where('statut', ProgressStatus::NonDemarre->value)
+            ->whereNull('date_reelle')
+            ->whereNull('annotation')
+            ->delete();
     }
 
     private function instancierLivrables(Project $project): void

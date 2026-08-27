@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Concerns\EstAudite;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\MemberRole;
 use App\Enums\Permission;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
@@ -143,6 +144,37 @@ class User extends Authenticatable implements PasskeyUser
     public function scopeActifs(Builder $query): Builder
     {
         return $query->where('actif', true);
+    }
+
+    /**
+     * Personnes dont le profil permet de tenir ce rôle sur un projet.
+     *
+     * `$aussi` réintègre des comptes hors critère — typiquement celui déjà
+     * désigné sur le projet qu'on est en train de modifier. Sans cela, ouvrir
+     * la fiche d'un projet dont le référent a changé de profil effacerait
+     * silencieusement sa désignation à l'enregistrement suivant.
+     *
+     * @param  Builder<User>  $query
+     * @param  array<int, int>  $aussi
+     * @return Builder<User>
+     */
+    public function scopePourRoleProjet(Builder $query, MemberRole $role, array $aussi = []): Builder
+    {
+        $profils = $role->profilsEligibles();
+
+        if ($profils === []) {
+            return $query;
+        }
+
+        $retenus = array_values(array_filter($aussi));
+
+        return $query->where(function (Builder $q) use ($profils, $retenus) {
+            $q->whereHas('profile', fn (Builder $p) => $p->whereIn('code', $profils));
+
+            if ($retenus !== []) {
+                $q->orWhereIn('id', $retenus);
+            }
+        });
     }
 
     /**
