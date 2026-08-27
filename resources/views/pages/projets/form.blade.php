@@ -142,7 +142,11 @@ new class extends Component
         $this->typeProjet = ProjectType::Deploiement->value;
         $this->categorie = ProjectCategory::Autres->value;
         $this->statut = ProjectStatus::EnPreparation->value;
-        $this->chefProjetId = (string) auth()->id();
+        // Se désigner soi-même n'a de sens que si l'on a la fonction : la
+        // Direction crée des projets qu'elle ne pilote pas.
+        if (User::query()->whereKey(auth()->id())->pourRoleProjet(MemberRole::ChefProjet)->exists()) {
+            $this->chefProjetId = (string) auth()->id();
+        }
         $this->cocherToutesLesEtapes();
         $this->cocherToutesLesPhases();
     }
@@ -248,7 +252,7 @@ new class extends Component
                 ->exists();
 
             if (! $eligible) {
-                $echouer("Le profil de ce compte ne permet pas de tenir le rôle « {$role->label()} ».");
+                $echouer("La fonction de ce compte ne permet pas de tenir le rôle « {$role->label()} ». À corriger depuis l'écran « Utilisateurs ».");
             }
         };
     }

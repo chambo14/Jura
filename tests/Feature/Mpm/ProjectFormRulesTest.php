@@ -38,23 +38,69 @@ class ProjectFormRulesTest extends TestCase
 
     // ── Rôles de pilotage ──────────────────────────────────────────────────
 
-    public function test_chaque_role_ne_propose_que_les_profils_prevus(): void
+    /**
+     * Le profil dit les droits d'accès, la fonction dit le métier. Filtrer sur
+     * le profil rangeait référents techniques et testeurs sous le même
+     * « membre d'équipe », et proposait un testeur comme référent technique.
+     */
+    public function test_chaque_role_ne_propose_que_les_fonctions_prevues(): void
     {
-        $chef = User::factory()->role(UserRole::ChefProjet)->create(['name' => 'Chef']);
-        $sponsor = User::factory()->role(UserRole::Sponsor)->create(['name' => 'Sponsor']);
-        $membre = User::factory()->role(UserRole::Membre)->create(['name' => 'Membre']);
-        $direction = $this->direction();
+        User::factory()->role(UserRole::ChefProjet)->create(['name' => 'Chef']);
+        User::factory()->role(UserRole::Sponsor)->create(['name' => 'Sponsor']);
+        User::factory()->role(UserRole::Membre)->fonction(MemberRole::ReferentTechnique)->create(['name' => 'Référent']);
+        User::factory()->role(UserRole::Membre)->fonction(MemberRole::Testeur)->create(['name' => 'Testeur']);
+        User::factory()->role(UserRole::Membre)->fonction(MemberRole::Developpeur)->create(['name' => 'Développeur']);
 
-        $formulaire = Livewire::actingAs($direction)->test('pages::projets.form')->instance();
+        $formulaire = Livewire::actingAs($this->direction())->test('pages::projets.form')->instance();
 
         $noms = fn (MemberRole $role) => $formulaire->candidats($role)->pluck('name')->sort()->values()->all();
 
-        $attendu = fn (array $noms) => collect($noms)->sort()->values()->all();
+        $this->assertSame(['Chef'], $noms(MemberRole::ChefProjet));
+        $this->assertSame(['Sponsor'], $noms(MemberRole::Sponsor));
+        $this->assertSame(['Référent'], $noms(MemberRole::ReferentTechnique));
 
-        // La Direction supplée partout, donc figure dans chaque liste.
-        $this->assertSame($attendu(['Chef', $direction->name]), $noms(MemberRole::ChefProjet));
-        $this->assertSame($attendu([$direction->name, 'Sponsor']), $noms(MemberRole::Sponsor));
-        $this->assertSame($attendu(['Chef', $direction->name, 'Membre']), $noms(MemberRole::ReferentTechnique));
+        // Un back-up supplée le chef de projet : la fonction convient aussi.
+        $this->assertSame(['Chef'], $noms(MemberRole::BackUp));
+    }
+
+    public function test_un_testeur_nest_pas_propose_comme_referent_technique(): void
+    {
+        $testeur = User::factory()->role(UserRole::Membre)->fonction(MemberRole::Testeur)->create();
+        $client = Client::factory()->create();
+
+        Livewire::actingAs($this->direction())
+            ->test('pages::projets.form')
+            ->set('nom', 'Projet test')
+            ->set('clientId', (string) $client->id)
+            ->set('categorie', ProjectCategory::Monetique->value)
+            ->set('referentTechniqueId', (string) $testeur->id)
+            ->call('enregistrer')
+            ->assertHasErrors('referentTechniqueId');
+    }
+
+    /**
+     * La Direction administre les comptes sans être partie prenante d'un
+     * projet : sans fonction déclarée, elle n'apparaît pas dans les listes.
+     */
+    public function test_la_direction_sans_fonction_ne_figure_pas_dans_les_listes(): void
+    {
+        $direction = $this->direction();
+
+        $formulaire = Livewire::actingAs($direction)->test('pages::projets.form');
+
+        $this->assertSame('', $formulaire->get('chefProjetId'));
+        $this->assertFalse(
+            $formulaire->instance()->candidats(MemberRole::ChefProjet)->contains('id', $direction->id),
+        );
+    }
+
+    public function test_le_createur_est_prerempli_sil_a_la_fonction(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create();
+
+        Livewire::actingAs($chef)
+            ->test('pages::projets.form')
+            ->assertSet('chefProjetId', (string) $chef->id);
     }
 
     public function test_un_sponsor_ne_peut_pas_etre_designe_referent_technique(): void
@@ -74,9 +120,9 @@ class ProjectFormRulesTest extends TestCase
         $this->assertNull(Project::firstWhere('nom', 'Projet test'));
     }
 
-    public function test_un_membre_dequipe_peut_etre_referent_technique(): void
+    public function test_un_referent_technique_peut_etre_designe_comme_tel(): void
     {
-        $membre = User::factory()->role(UserRole::Membre)->create();
+        $membre = User::factory()->role(UserRole::Membre)->fonction(MemberRole::ReferentTechnique)->create();
         $client = Client::factory()->create();
 
         Livewire::actingAs($this->direction())
@@ -144,6 +190,7 @@ class ProjectFormRulesTest extends TestCase
             ->set('nom', 'Projet allégé')
             ->set('clientId', (string) $client->id)
             ->set('categorie', ProjectCategory::Monetique->value)
+            ->set('chefProjetId', (string) User::factory()->role(UserRole::ChefProjet)->create()->id)
             ->set('etapes', $retenues)
             ->call('enregistrer')
             ->assertHasNoErrors();
@@ -248,6 +295,7 @@ class ProjectFormRulesTest extends TestCase
             ->set('nom', 'Projet court')
             ->set('clientId', (string) $client->id)
             ->set('categorie', ProjectCategory::Monetique->value)
+            ->set('chefProjetId', (string) User::factory()->role(UserRole::ChefProjet)->create()->id)
             ->set('phases', $retenues)
             ->call('enregistrer')
             ->assertHasNoErrors();
@@ -273,6 +321,7 @@ class ProjectFormRulesTest extends TestCase
             ->set('nom', 'Projet sans opportunité')
             ->set('clientId', (string) $client->id)
             ->set('categorie', ProjectCategory::Monetique->value)
+            ->set('chefProjetId', (string) User::factory()->role(UserRole::ChefProjet)->create()->id)
             ->set('phases', $retenues)
             ->call('enregistrer')
             ->assertHasNoErrors();

@@ -124,6 +124,10 @@ class PortefeuilleDemoSeeder extends Seeder
                     'name' => $nom,
                     'profile_id' => $profils[$role->value] ?? null,
                     'poste' => $poste,
+                    // Le poste dit le métier en toutes lettres ; la fonction
+                    // en est la forme structurée, qui décide des rôles
+                    // proposés sur une fiche projet.
+                    'fonction' => MemberRole::depuisUnPoste($poste),
                     'equipe' => $equipe,
                     'actif' => true,
                     'password' => 'password',

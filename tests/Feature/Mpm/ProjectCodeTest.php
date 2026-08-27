@@ -117,6 +117,7 @@ class ProjectCodeTest extends TestCase
             ->set('clientId', (string) $client->id)
             ->set('typeProjet', ProjectType::cases()[0]->value)
             ->set('categorie', ProjectCategory::Monetique->value)
+            ->set('chefProjetId', (string) User::factory()->role(UserRole::ChefProjet)->create()->id)
             ->call('enregistrer')
             ->assertHasNoErrors();
 
@@ -148,6 +149,7 @@ class ProjectCodeTest extends TestCase
             ->set('clientId', (string) $client->id)
             ->set('typeProjet', ProjectType::cases()[0]->value)
             ->set('categorie', ProjectCategory::Monetique->value)
+            ->set('chefProjetId', (string) User::factory()->role(UserRole::ChefProjet)->create()->id)
             ->call('enregistrer')
             ->assertHasNoErrors();
 

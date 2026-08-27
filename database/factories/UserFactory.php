@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\MemberRole;
 use App\Enums\UserRole;
 use App\Models\Profile;
 use App\Models\User;
@@ -51,7 +52,19 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'profile_id' => $this->profilePour($role)->id,
             'poste' => $role->label(),
+            // Le profil dit les droits, la fonction dit le métier. Les deux
+            // coïncident pour les profils livrés, sauf la Direction, qui
+            // administre sans être partie prenante d'un projet.
+            'fonction' => MemberRole::depuisUnPoste($role->label()),
         ]);
+    }
+
+    /**
+     * Fonction projet du compte, indépendamment de son profil d'accès.
+     */
+    public function fonction(?MemberRole $fonction): static
+    {
+        return $this->state(fn (array $attributes) => ['fonction' => $fonction]);
     }
 
     /**

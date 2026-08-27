@@ -30,12 +30,25 @@ réattribué : deux projets différents deviendraient indiscernables dans les co
 déjà diffusés. Le champ se reprend en main d'un clic pour un projet dont le code figure à
 un contrat.
 
-Les quatre rôles du bloc **Pilotage** ne proposent que les comptes dont le profil le
-prévoit : chef de projet et back-up parmi les chefs de projet, sponsor parmi les sponsors,
-référent technique parmi les membres d'équipe et les chefs de projet. La Direction reste
-éligible partout, puisqu'elle supplée. La règle est revérifiée à l'enregistrement, le
-filtrage d'une liste déroulante ne protégeant que l'écran. Une personne déjà désignée
-avant cette règle reste acceptée : la fiche ne casse pas sur un existant dont elle hérite.
+Les quatre rôles du bloc **Pilotage** ne proposent que les comptes dont la **fonction** le
+prévoit : un référent technique est un référent technique, un sponsor un sponsor. Seul le
+back-up est plus large, un chef de projet suppléant par définition.
+
+Le filtre porte sur la fonction et non sur le profil, parce que les deux ne disent pas la
+même chose. Le profil dit les droits d'accès — quatre valeurs, dont un « membre d'équipe »
+qui recouvre aussi bien les référents techniques que les testeurs, les développeurs et les
+intégrateurs. La fonction dit le métier, et c'est elle qui décide des rôles proposés. Elle
+se règle par compte depuis l'écran **Utilisateurs**, sous le poste, et a été reprise une
+fois de l'intitulé de poste à la mise en service.
+
+Un compte sans fonction déclarée n'apparaît dans aucune liste de pilotage. C'est voulu
+pour la Direction, qui administre les comptes sans être partie prenante d'un projet — mais
+si elle doit pouvoir être désignée quelque part, il faut lui donner la fonction
+correspondante.
+
+La règle est revérifiée à l'enregistrement, le filtrage d'une liste déroulante ne
+protégeant que l'écran. Une personne déjà désignée avant cette règle reste acceptée et
+reste proposée : la fiche ne casse pas sur un existant dont elle hérite.
 
 Le **périmètre** du référentiel se coche, à la création comme à la modification : tous les
 projets ne suivent pas tout le cycle. Un correctif n'a pas de phase d'opportunité, un

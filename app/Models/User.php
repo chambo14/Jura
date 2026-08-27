@@ -28,6 +28,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int|null $profile_id
  * @property string|null $poste
  * @property string|null $equipe
+ * @property MemberRole|null $fonction
  * @property string|null $telephone
  * @property bool $actif
  * @property CarbonInterface|null $email_verified_at
@@ -40,7 +41,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property CarbonInterface|null $updated_at
  * @property-read Profile|null $profile
  */
-#[Fillable(['name', 'email', 'password', 'profile_id', 'poste', 'equipe', 'telephone', 'actif'])]
+#[Fillable(['name', 'email', 'password', 'profile_id', 'poste', 'fonction', 'equipe', 'telephone', 'actif'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -55,6 +56,7 @@ class User extends Authenticatable implements PasskeyUser
     protected function casts(): array
     {
         return [
+            'fonction' => MemberRole::class,
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'actif' => 'boolean',
@@ -147,11 +149,15 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
-     * Personnes dont le profil permet de tenir ce rôle sur un projet.
+     * Personnes dont la fonction permet de tenir ce rôle sur un projet.
+     *
+     * Le filtre porte sur la fonction, pas sur le profil : le profil dit les
+     * droits d'accès et rangeait référents techniques, testeurs et
+     * développeurs sous le même « membre d'équipe ».
      *
      * `$aussi` réintègre des comptes hors critère — typiquement celui déjà
      * désigné sur le projet qu'on est en train de modifier. Sans cela, ouvrir
-     * la fiche d'un projet dont le référent a changé de profil effacerait
+     * la fiche d'un projet dont le référent a changé de fonction effacerait
      * silencieusement sa désignation à l'enregistrement suivant.
      *
      * @param  Builder<User>  $query
@@ -160,16 +166,16 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function scopePourRoleProjet(Builder $query, MemberRole $role, array $aussi = []): Builder
     {
-        $profils = $role->profilsEligibles();
+        $fonctions = $role->fonctionsEligibles();
 
-        if ($profils === []) {
+        if ($fonctions === []) {
             return $query;
         }
 
         $retenus = array_values(array_filter($aussi));
 
-        return $query->where(function (Builder $q) use ($profils, $retenus) {
-            $q->whereHas('profile', fn (Builder $p) => $p->whereIn('code', $profils));
+        return $query->where(function (Builder $q) use ($fonctions, $retenus) {
+            $q->whereIn('fonction', $fonctions);
 
             if ($retenus !== []) {
                 $q->orWhereIn('id', $retenus);

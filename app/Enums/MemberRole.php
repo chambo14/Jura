@@ -72,36 +72,79 @@ enum MemberRole: string
     }
 
     /**
+     * Reconnaît une fonction dans un intitulé de poste saisi librement.
+     *
+     * Les comptes existants portent leur fonction dans le champ « poste », en
+     * toutes lettres et parfois au féminin. Cette lecture sert à les reprendre
+     * une fois, à la mise en service du champ structuré ; ensuite, c'est ce
+     * dernier qui fait foi.
+     */
+    public static function depuisUnPoste(?string $poste): ?self
+    {
+        $normalise = self::sansAccent($poste ?? '');
+
+        if ($normalise === '') {
+            return null;
+        }
+
+        foreach (self::cases() as $cas) {
+            if ($cas === self::Autre) {
+                continue;
+            }
+
+            $libelle = self::sansAccent($cas->label());
+
+            // « Testeuse » comme « Testeur », « Chef de projet adjoint » comme
+            // « Chef de projet » : on retient la racine du libellé.
+            if (str_starts_with($normalise, rtrim($libelle, 'r')) || str_contains($normalise, $libelle)) {
+                return $cas;
+            }
+        }
+
+        return null;
+    }
+
+    private static function sansAccent(string $texte): string
+    {
+        $translitere = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $texte);
+
+        return mb_strtolower(trim($translitere === false ? $texte : $translitere));
+    }
+
+    /**
+     * Fonctions qu'un compte peut porter, dans l'ordre du bloc « Pilotage »
+     * puis des rôles d'exécution.
+     *
+     * @return array<int, self>
+     */
+    public static function fonctions(): array
+    {
+        return self::cases();
+    }
+
+    /**
      * Profils d'accès dont les titulaires peuvent tenir ce rôle sur un projet.
      *
-     * Les listes déroulantes du bloc « Pilotage » proposaient tout le monde :
-     * un sponsor pouvait être désigné référent technique, et réciproquement.
-     * Chaque rôle ne propose désormais que les personnes dont le profil le
-     * prévoit — la Direction restant éligible partout, puisqu'elle supplée.
+     * Le profil d'un compte dit ses droits d'accès, pas son métier : filtrer
+     * dessus faisait apparaître les testeurs parmi les référents techniques,
+     * tous étant « membres d'équipe ». C'est la fonction du compte qui décide.
+     *
+     * Un back-up est un chef de projet qui supplée : les deux fonctions
+     * conviennent. Ailleurs, la règle est stricte — un référent technique est
+     * un référent technique.
      *
      * Un tableau vide vaut absence de restriction : les rôles d'exécution
-     * (testeur, développeur…) s'attribuent à qui de droit sans filtre.
+     * s'attribuent sans filtre depuis l'onglet Ressources.
      *
      * @return array<int, string>
      */
-    public function profilsEligibles(): array
+    public function fonctionsEligibles(): array
     {
         return match ($this) {
-            self::ChefProjet, self::BackUp => [
-                UserRole::Direction->value,
-                UserRole::ChefProjet->value,
-            ],
-            self::Sponsor => [
-                UserRole::Direction->value,
-                UserRole::Sponsor->value,
-            ],
-            // Le référent technique est un membre d'équipe ; un chef de projet
-            // peut aussi tenir ce rôle sur un projet qu'il ne pilote pas.
-            self::ReferentTechnique => [
-                UserRole::Direction->value,
-                UserRole::ChefProjet->value,
-                UserRole::Membre->value,
-            ],
+            self::ChefProjet => [self::ChefProjet->value],
+            self::BackUp => [self::BackUp->value, self::ChefProjet->value],
+            self::Sponsor => [self::Sponsor->value],
+            self::ReferentTechnique => [self::ReferentTechnique->value],
             default => [],
         };
     }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\MemberRole;
 use App\Models\Profile;
 use App\Models\User;
 use Flux\Flux;
@@ -34,6 +35,8 @@ new class extends Component {
     public string $profilId = '';
 
     public string $poste = '';
+
+    public string $fonction = '';
 
     public string $equipe = '';
 
@@ -99,7 +102,7 @@ new class extends Component {
     {
         $this->authorize('create', User::class);
 
-        $this->reset('enEdition', 'nom', 'email', 'poste', 'equipe', 'telephone', 'motDePasseProvisoire');
+        $this->reset('enEdition', 'nom', 'email', 'poste', 'fonction', 'equipe', 'telephone', 'motDePasseProvisoire');
         $this->profilId = (string) ($this->profils()->last()?->id ?? '');
         $this->actif = true;
         $this->resetValidation();
@@ -127,6 +130,7 @@ new class extends Component {
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->enEdition)],
             'profilId' => ['required', 'exists:profiles,id'],
             'poste' => ['nullable', 'string', 'max:255'],
+            'fonction' => ['nullable', Rule::enum(MemberRole::class)],
             'equipe' => ['nullable', 'string', 'max:255'],
             'telephone' => ['nullable', 'string', 'max:40'],
             'actif' => ['boolean'],
@@ -141,6 +145,7 @@ new class extends Component {
             'email' => Str::lower($donnees['email']),
             'profile_id' => $donnees['profilId'],
             'poste' => $donnees['poste'] ?: null,
+            'fonction' => $donnees['fonction'] ?: null,
             'equipe' => $donnees['equipe'] ?: null,
             'telephone' => $donnees['telephone'] ?: null,
             'actif' => $donnees['actif'],
@@ -221,6 +226,7 @@ new class extends Component {
         $this->email = $utilisateur->email;
         $this->profilId = (string) ($utilisateur->profile_id ?? '');
         $this->poste = $utilisateur->poste ?? '';
+        $this->fonction = $utilisateur->fonction?->value ?? '';
         $this->equipe = $utilisateur->equipe ?? '';
         $this->telephone = $utilisateur->telephone ?? '';
         $this->actif = $utilisateur->actif;
@@ -302,6 +308,9 @@ new class extends Component {
 
                         <td class="px-4 py-3 text-zinc-600 dark:text-zinc-300">
                             {{ $utilisateur->poste ?? '—' }}
+                            @if ($utilisateur->fonction)
+                                <div class="text-xs text-zinc-400 dark:text-zinc-500">{{ $utilisateur->fonction->label() }}</div>
+                            @endif
                             @if ($utilisateur->equipe)
                                 <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ $utilisateur->equipe }}</div>
                             @endif
@@ -386,6 +395,16 @@ new class extends Component {
 
             <div class="grid grid-cols-2 gap-3">
                 <flux:input wire:model="poste" label="Poste" placeholder="Chef de projet" />
+
+                {{-- La fonction n'est pas le profil : celui-ci dit les droits
+                     d'accès, celle-là le métier. C'est elle qui décide des rôles
+                     proposés sur une fiche projet. --}}
+                <flux:select wire:model="fonction" label="Fonction projet">
+                    <flux:select.option value="">Non précisée</flux:select.option>
+                    @foreach (MemberRole::fonctions() as $cas)
+                        <flux:select.option :value="$cas->value">{{ $cas->label() }}</flux:select.option>
+                    @endforeach
+                </flux:select>
                 <flux:input
                     wire:model="equipe"
                     label="Équipe métier"
