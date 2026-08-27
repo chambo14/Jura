@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\FlashItemType;
 use App\Enums\MemberRole;
 use App\Models\FlashReport;
+use App\Models\Project;
 use App\Models\ProjectMember;
 use App\Support\Comite\Diapositive;
 use App\Support\Pptx\Deck;
@@ -50,6 +51,7 @@ class ComiteExporter
                 'titre' => $this->titre($deck, $diapositives, $lundi, $utile),
                 'rubrique' => $this->rubrique($deck, $diapositive, $utile),
                 'projet' => $this->projet($deck, $diapositive->rapport(), $utile),
+                'sans_rapport' => $this->sansRapport($deck, $diapositive->projetSansRapport(), $lundi, $utile),
                 default => null,
             };
         }
@@ -67,8 +69,9 @@ class ComiteExporter
      */
     private function titre(Deck $deck, Collection $diapositives, CarbonInterface $lundi, int $utile): void
     {
-        $projets = $diapositives->where('type', 'projet')->count();
+        $projets = $diapositives->whereIn('type', ['projet', 'sans_rapport'])->count();
         $rubriques = $diapositives->where('type', 'rubrique')->count();
+        $manquants = $diapositives->where('type', 'sans_rapport')->count();
 
         $bloc = Forme::bloc(self::MARGE, 2200000, $utile, 2000000, centre: true)
             ->ligne('COMITÉ PROJETS', 4000, self::NAVY, gras: true)
@@ -84,6 +87,15 @@ class ComiteExporter
                 1400,
                 self::GRIS,
             );
+
+        if ($manquants > 0) {
+            $bloc->ligne('', 800)->ligne(
+                $manquants.' '.($manquants > 1 ? 'projets sans flash report' : 'projet sans flash report'),
+                1400,
+                self::BORDEAUX,
+                gras: true,
+            );
+        }
 
         $deck->ajouter([$bloc]);
     }
@@ -102,6 +114,18 @@ class ComiteExporter
                 1600,
                 self::ENCRE,
             );
+
+        $manquants = $diapositive->rapportsManquants();
+
+        if ($manquants->isNotEmpty()) {
+            $liste->ligne('', 800)
+                ->ligne('Sans flash report cette semaine', 1300, self::BORDEAUX, gras: true)
+                ->puces(
+                    $manquants->map(fn (Project $projet) => $projet->code.' — '.$projet->nom),
+                    1400,
+                    self::BORDEAUX,
+                );
+        }
 
         $deck->ajouter([$entete, $liste]);
     }
@@ -150,6 +174,64 @@ class ComiteExporter
                 couleurEntete: $type === FlashItemType::Attention ? self::BORDEAUX : self::NAVY,
             );
         }
+
+        $deck->ajouter($formes);
+    }
+
+    /**
+     * Fiche d'un projet actif dont le flash report manque.
+     *
+     * Elle ne comble pas le vide : elle le nomme, et n'affiche que ce que la
+     * fiche projet sait déjà. Aucun chiffre d'activité n'est reconstitué.
+     */
+    private function sansRapport(Deck $deck, Project $projet, CarbonInterface $lundi, int $utile): void
+    {
+        $formes = [];
+
+        $formes[] = Forme::bloc(self::MARGE, 300000, $utile, 800000, self::BORDEAUX)
+            ->ligne($projet->nom, 2000, 'FFFFFF', gras: true)
+            ->ligne(
+                $projet->code.' · '.$projet->client->displayName().' · RAPPORT NON RENDU',
+                1100,
+                'FFD9D9',
+            );
+
+        $formes[] = Forme::bloc(self::MARGE, 1250000, $utile, 900000)
+            ->ligne(
+                'Aucun flash report pour la semaine du '.$lundi->format('d/m/Y'),
+                1400,
+                self::BORDEAUX,
+                gras: true,
+            )
+            ->ligne(
+                "Le projet est actif : son avancement, ses réalisations et ses points d'attention de la semaine ne sont pas connus.",
+                1000,
+                self::GRIS,
+            );
+
+        $colonne = (int) (($utile - self::GOUTTIERE) / 2);
+
+        $formes[] = $this->section(self::MARGE, 2400000, $colonne, 'PILOTAGE', $this->sansVide([
+            'Chef de projet : '.($projet->chefProjet->name ?? '—'),
+            'Back-up : '.($projet->backUp->name ?? '—'),
+            'Sponsor : '.($projet->sponsor->name ?? '—'),
+            'Référent technique : '.($projet->referentTechnique->name ?? '—'),
+        ]), hauteur: 2400000);
+
+        $formes[] = $this->section(
+            self::MARGE + $colonne + self::GOUTTIERE,
+            2400000,
+            $colonne,
+            'CE QUE DIT LA FICHE PROJET',
+            $this->sansVide([
+                'Date de début : '.($projet->date_debut?->format('d/m/Y') ?? '—'),
+                'Fin prévue : '.($projet->dateFinEffective()?->format('d/m/Y') ?? '—'),
+                $projet->phase ? 'Phase MPM : '.$projet->phase->nom : null,
+                $projet->workflowStep ? 'Étape courante : '.$projet->workflowStep->libelle : null,
+                'Avancement déclaré : '.number_format($projet->avancement_pct, 2, ',', ' ').' % (non confirmé cette semaine)',
+            ]),
+            hauteur: 2400000,
+        );
 
         $deck->ajouter($formes);
     }

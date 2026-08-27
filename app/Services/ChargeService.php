@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Support\Charge\ChargeCollaborateur;
 use App\Support\Charge\ChargeProjet;
 use App\Support\Charge\Periode;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -183,7 +184,7 @@ class ChargeService
     {
         $recouvrement = $periode->recouvrement(
             $affectation->date_debut ?? $projet->date_debut,
-            $affectation->date_fin ?? $projet->dateFinEffective(),
+            $this->finDeLAffectation($affectation, $projet),
         );
 
         if ($recouvrement <= 0) {
@@ -191,6 +192,32 @@ class ChargeService
         }
 
         return $affectation->allocation_pct * $affectation->role->poids() / 100 * $recouvrement;
+    }
+
+    /**
+     * Fin de la fenêtre pendant laquelle une affectation consomme de la charge.
+     *
+     * Une date de fin posée sur l'affectation elle-même est une décision : elle
+     * s'applique telle quelle. La date de fin du projet, en revanche, est une
+     * prévision — et un projet toujours en cours après elle continue bel et
+     * bien de mobiliser son équipe. Refermer la fenêtre à cette date faisait
+     * disparaître du plan de charge les projets en retard, au moment précis où
+     * ils pèsent le plus lourd. La fenêtre reste donc ouverte tant que le
+     * projet n'est pas clos.
+     */
+    private function finDeLAffectation(ProjectMember $affectation, Project $projet): ?CarbonInterface
+    {
+        if ($affectation->date_fin !== null) {
+            return $affectation->date_fin;
+        }
+
+        $fin = $projet->dateFinEffective();
+
+        if ($fin !== null && $fin->isPast() && $projet->statut->isActive()) {
+            return null;
+        }
+
+        return $fin;
     }
 
     /**

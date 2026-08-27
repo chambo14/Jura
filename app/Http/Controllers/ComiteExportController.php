@@ -39,15 +39,19 @@ class ComiteExportController extends Controller
         /** @var User $utilisateur */
         $utilisateur = $requete->user();
 
-        $rapports = $builder->rapports(
+        $diapositives = $builder->sequence(
             $utilisateur,
             $lundi,
             $requete->boolean('brouillons', true),
         );
 
-        abort_if($rapports->isEmpty(), 404, "Aucun flash report pour cette semaine : il n'y a rien à exporter.");
+        abort_if(
+            $diapositives->where('type', '!=', 'titre')->isEmpty(),
+            404,
+            "Aucun projet ni flash report pour cette semaine : il n'y a rien à exporter.",
+        );
 
-        $chemin = $exporter->exporter($builder->diapositives($rapports), $lundi);
+        $chemin = $exporter->exporter($diapositives, $lundi);
 
         return response()
             ->download($chemin, $exporter->nomDuFichier($lundi))

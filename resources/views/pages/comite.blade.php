@@ -66,7 +66,22 @@ class extends Component {
     #[Computed]
     public function diapositives(): Collection
     {
-        return app(ComiteBuilder::class)->diapositives($this->rapports());
+        return app(ComiteBuilder::class)->sequence(
+            auth()->user(),
+            $this->lundi(),
+            $this->inclureBrouillons,
+        );
+    }
+
+    /**
+     * Projets actifs dont le flash report de la semaine manque.
+     *
+     * @return Collection<int, Diapositive>
+     */
+    #[Computed]
+    public function manquants(): Collection
+    {
+        return $this->diapositives()->where('type', 'sans_rapport')->values();
     }
 
     #[Computed]
@@ -223,9 +238,19 @@ class extends Component {
                             </div>
                         </div>
 
-                        @if ($this->rapports()->isEmpty())
+                        @if ($this->manquants()->isNotEmpty())
+                            <flux:callout icon="exclamation-triangle" color="amber" class="mt-9 max-w-2xl">
+                                {{ $this->manquants()->count() }}
+                                {{ Str::plural('projet actif', $this->manquants()->count()) }}
+                                {{ $this->manquants()->count() > 1 ? 'n\'ont' : 'n\'a' }} pas de flash report cette semaine.
+                                {{ $this->manquants()->count() > 1 ? 'Ils passent' : 'Il passe' }} quand même à l'ordre du jour,
+                                {{ $this->manquants()->count() > 1 ? 'signalés' : 'signalé' }} comme donnée manquante.
+                            </flux:callout>
+                        @endif
+
+                        @if ($this->diapositives()->where('type', 'rubrique')->isEmpty())
                             <flux:callout icon="exclamation-triangle" color="amber" class="mt-9 max-w-lg">
-                                Aucun flash report pour cette semaine. Préparez-les depuis l'écran « Flash reports ».
+                                Aucun projet actif ni flash report pour cette semaine.
                             </flux:callout>
                         @else
                             {{-- Sommaire des rubriques --}}
@@ -245,7 +270,10 @@ class extends Component {
                                                     {{ $rubrique->categorie->label() }}
                                                 </span>
                                                 <span class="block text-xs text-white/60">
-                                                    {{ $rubrique->projets->count() }} projet(s)
+                                                    {{ $rubrique->projets->count() }} {{ Str::plural('projet', $rubrique->projets->count()) }}
+                                                    @if ($rubrique->rapportsManquants->isNotEmpty())
+                                                        · <span class="text-amber-200">{{ $rubrique->rapportsManquants->count() }} sans rapport</span>
+                                                    @endif
                                                 </span>
                                             </span>
                                         </button>
@@ -311,12 +339,40 @@ class extends Component {
                         @endforeach
                     </ul>
 
+                    @if ($slide->rapportsManquants->isNotEmpty())
+                        {{-- Ces projets n'ont rien rendu : ils figurent au sommaire de
+                             la rubrique, sans chiffre inventé pour combler le vide. --}}
+                        <div class="mt-6">
+                            <div class="text-xs font-bold uppercase tracking-wide text-mpm-burgundy">
+                                Sans flash report cette semaine
+                            </div>
+                            <ul class="mt-2 space-y-1.5">
+                                @foreach ($slide->rapportsManquants as $projet)
+                                    <li class="flex flex-wrap items-center gap-3 border border-dashed border-mpm-burgundy/40 bg-mpm-burgundy/5 px-4 py-2.5">
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate font-bold text-black">{{ $projet->nom }}</span>
+                                            <span class="block truncate text-xs text-neutral-500">
+                                                {{ $projet->client->sigle ?? $projet->client->nom }} ·
+                                                {{ $projet->chefProjet?->name ?? 'Sans chef de projet' }}
+                                            </span>
+                                        </span>
+                                        <span class="shrink-0 text-xs font-bold uppercase tracking-wide text-mpm-burgundy">
+                                            Non rendu
+                                        </span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
                     <img
                         src="{{ asset('images/mediasoft-lafayette.png') }}"
                         alt="Mediasoft Lafayette"
                         class="mt-auto h-12 w-auto self-end pt-8"
                     />
                 </div>
+            @elseif ($slide->type === 'sans_rapport')
+                <x-comite-sans-rapport :project="$slide->projet" :semaine="$this->lundi()" />
             @else
                 <x-flash-slide :report="$slide->rapport" presentation />
             @endif

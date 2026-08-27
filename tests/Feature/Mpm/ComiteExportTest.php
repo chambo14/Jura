@@ -4,6 +4,7 @@ namespace Tests\Feature\Mpm;
 
 use App\Enums\FlashReportStatus;
 use App\Enums\ProjectCategory;
+use App\Enums\ProjectStatus;
 use App\Enums\UserRole;
 use App\Models\Project;
 use App\Models\User;
@@ -129,9 +130,55 @@ class ComiteExportTest extends TestCase
         $this->assertCount(1, $builder->rapports($direction, Date::parse(self::LUNDI), false));
     }
 
-    public function test_une_semaine_sans_rapport_ne_produit_pas_de_fichier_vide(): void
+    /**
+     * Un projet actif dont le rapport manque ne disparaît plus : il est présenté
+     * comme donnée manquante, sans qu'aucun chiffre soit reconstitué.
+     */
+    public function test_un_projet_actif_sans_rapport_reste_a_lordre_du_jour(): void
+    {
+        $this->projetAvecRapport('Projet qui a rendu');
+        $muet = Project::factory()->create(['nom' => 'Projet resté muet', 'categorie' => ProjectCategory::Monetique]);
+
+        $builder = app(ComiteBuilder::class);
+        $direction = User::factory()->role(UserRole::Direction)->create();
+
+        $sequence = $builder->sequence($direction, Date::parse(self::LUNDI));
+
+        $manquants = $sequence->where('type', 'sans_rapport');
+        $this->assertCount(1, $manquants);
+        $this->assertTrue($manquants->first()->projetSansRapport()->is($muet));
+
+        // La rubrique le porte aussi, pour qu'il figure au sommaire.
+        $rubrique = $sequence->firstWhere('type', 'rubrique');
+        $this->assertSame(['Projet resté muet'], $rubrique->rapportsManquants()->pluck('nom')->all());
+    }
+
+    public function test_un_projet_clos_ne_reclame_pas_de_rapport(): void
     {
         $this->projetAvecRapport();
+        Project::factory()->create(['nom' => 'Projet clôturé', 'statut' => ProjectStatus::Cloture]);
+
+        $sequence = app(ComiteBuilder::class)->sequence(
+            User::factory()->role(UserRole::Direction)->create(),
+            Date::parse(self::LUNDI),
+        );
+
+        $this->assertCount(0, $sequence->where('type', 'sans_rapport'));
+    }
+
+    public function test_lexport_dune_semaine_sans_rapport_presente_quand_meme_les_projets_actifs(): void
+    {
+        Project::factory()->create(['nom' => 'Projet resté muet']);
+
+        $this->actingAs(User::factory()->role(UserRole::Direction)->create())
+            ->get(route('comite.export', ['semaine' => '2026-09-14']))
+            ->assertOk()
+            ->assertDownload('comite-projets-2026-09-14.pptx');
+    }
+
+    public function test_sans_aucun_projet_actif_il_ny_a_rien_a_exporter(): void
+    {
+        Project::query()->update(['statut' => ProjectStatus::Cloture->value]);
 
         $this->actingAs(User::factory()->role(UserRole::Direction)->create())
             ->get(route('comite.export', ['semaine' => '2026-09-14']))
