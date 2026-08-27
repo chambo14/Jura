@@ -304,6 +304,24 @@ Le compte Direction est `sandrine.yapo14@gmail.com`.
 npm run build
 ```
 
+**Le résultat est versionné.** `public/build/` est suivi par Git, contrairement à
+l'usage. La raison est concrète : le poste de la Direction des Projets n'a pas les
+droits d'installer npm, et l'hébergement mutualisé n'a ni SSH ni Node. Si les feuilles
+de style compilées ne voyageaient pas dans le dépôt, une nouvelle classe Tailwind
+introduite par un changement de vue ne pourrait être compilée nulle part, et l'écran
+s'afficherait sans style.
+
+En pratique : **qui modifie une vue recompile et livre `public/build/` dans le même
+commit.** Un `git pull` suffit alors à toute personne qui n'a pas la chaîne Node.
+
+Premier `git pull` après ce changement : si un `public/build/` non suivi traîne déjà sur
+le poste, Git refuse de l'écraser. Le supprimer avant de tirer.
+
+```powershell
+Remove-Item public\build -Recurse -Force
+git pull origin <branche>
+```
+
 ## Mettre à jour le site en ligne
 
 Déposer les fichiers — par FTP, par archive dépliée depuis le gestionnaire de fichiers,
@@ -344,7 +362,8 @@ sans `database/database.sqlite` : le site tombe, et la mise à jour échoue au p
 accès à la base.
 
 Sur le poste de développement, une fois `composer install --no-dev --optimize-autoloader`
-et `npm run build` passés :
+passé — `npm run build` n'étant nécessaire que si les assets compilés du dépôt ne sont
+pas à jour :
 
 ```powershell
 $src = "C:\chemin\vers\Jura"

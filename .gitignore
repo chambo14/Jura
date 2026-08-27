@@ -7,7 +7,11 @@
 /database/*.sqlite-shm
 /database/*.sqlite-wal
 
-/public/build
+# Les feuilles de style compilées sont versionnées à dessein : le poste de la
+# Direction des Projets n'a pas les droits d'installer npm, et l'hébergement
+# n'a ni SSH ni Node. Sans elles dans le dépôt, personne ne pourrait
+# reconstruire le style après un changement de vue.
+# /public/build
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
