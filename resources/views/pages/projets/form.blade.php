@@ -6,6 +6,7 @@ use App\Enums\ProjectType;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\AvancementService;
 use App\Services\ProjectProvisioner;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -94,6 +95,37 @@ new class extends Component {
         $this->categorie = ProjectCategory::Autres->value;
         $this->statut = ProjectStatus::EnPreparation->value;
         $this->chefProjetId = (string) auth()->id();
+    }
+
+    /**
+     * Reprend l'avancement des cartes du projet plutôt que de le saisir.
+     *
+     * Le chiffre reste proposé, jamais imposé : il tombe dans le champ, et
+     * c'est l'enregistrement du formulaire qui le retient. Le chef de projet
+     * garde donc le dernier mot — un taux constaté sur les cartes ne connaît
+     * ni les travaux non cartographiés, ni ce qui est fini mais pas encore
+     * basculé.
+     */
+    public function reprendreDesCartes(): void
+    {
+        if (! $this->project) {
+            return;
+        }
+
+        $cartes = $this->project->tasks()->get();
+
+        if ($cartes->isEmpty()) {
+            Flux::toast('Ce projet n\'a aucune carte : rien à reprendre.', variant: 'warning');
+
+            return;
+        }
+
+        $service = app(AvancementService::class);
+
+        $this->avancement = $service->tauxDeclare($cartes);
+        $this->tauxRealisation = $service->taux($cartes);
+
+        Flux::toast('Avancement repris des '.$cartes->count().' cartes du projet. Enregistrez pour le retenir.');
     }
 
     #[Computed]
@@ -299,6 +331,19 @@ new class extends Component {
                         <flux:input wire:model="avancement" type="number" step="0.01" min="0" max="100" label="% Avancement" />
                         <flux:input wire:model="tauxRealisation" type="number" step="0.01" min="0" max="100" label="Taux de réalisation" />
                     </div>
+
+                    @if ($project)
+                        {{-- Le taux constaté sur les cartes, proposé au chef de projet
+                             plutôt que substitué à son jugement. --}}
+                        <div class="flex flex-wrap items-center gap-2">
+                            <flux:button wire:click="reprendreDesCartes" variant="ghost" size="sm" icon="calculator">
+                                Reprendre des cartes
+                            </flux:button>
+                            <flux:text size="sm" class="text-zinc-500 dark:text-zinc-400">
+                                Calcule les deux taux d'après les cartes du tableau, pondérées par leur charge.
+                            </flux:text>
+                        </div>
+                    @endif
 
                     <flux:input wire:model="lienPlanning" type="url" label="Lien planning détaillé" placeholder="https://…" />
                 </div>

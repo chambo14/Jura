@@ -9,7 +9,9 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\AiSuggestionService;
 use App\Services\AttachmentService;
+use App\Services\AvancementService;
 use App\Services\ChargeService;
+use App\Support\Avancement\AvancementEquipe;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -47,6 +49,8 @@ new class extends Component {
     public bool $grouperParEquipe = false;
 
     public bool $afficherAnnulees = false;
+
+    public bool $afficherAvancement = true;
 
     // Carte ouverte dans le panneau latéral.
     public ?int $carteId = null;
@@ -216,6 +220,21 @@ new class extends Component {
             'bloquees' => $cartes->where('statut', ProgressStatus::Bloque)->count(),
             'retard' => $cartes->filter(fn (Task $carte) => $carte->enRetard())->count(),
         ];
+    }
+
+    /**
+     * Avancement constaté sur les cartes affichées, équipe par équipe.
+     *
+     * Le calcul suit les filtres : restreindre le tableau à un projet ou à une
+     * priorité restreint la mesure d'autant, et le panneau décrit toujours
+     * exactement ce qui est sous les yeux.
+     *
+     * @return Collection<int, AvancementEquipe>
+     */
+    #[Computed]
+    public function avancement(): Collection
+    {
+        return app(AvancementService::class)->parEquipe($this->cartes());
     }
 
     public function peutContribuerSur(Project $projet): bool
@@ -711,6 +730,7 @@ new class extends Component {
             <flux:checkbox wire:model.live="seulementMoi" label="Mes cartes" />
             <flux:checkbox wire:model.live="grouperParEquipe" label="Par équipe" />
             <flux:checkbox wire:model.live="afficherAnnulees" label="Annulées" />
+            <flux:checkbox wire:model.live="afficherAvancement" label="Avancement" />
         </div>
 
         @if ($project && $this->peutCreerCarte())
@@ -720,6 +740,101 @@ new class extends Component {
             </flux:button>
         @endif
     </div>
+
+    {{-- Avancement constaté, équipe par équipe --}}
+    @if ($afficherAvancement && $this->avancement()->isNotEmpty())
+        <div class="relative">
+            <x-chargement
+                cible="filtreProjet,filtreEquipe,filtreAssignee,filtrePriorite,recherche,seulementMoi,afficherAnnulees"
+                texte="Recalcul de l'avancement…"
+                class="rounded-xl"
+            />
+
+            <div wire:loading.class="opacity-40" class="grid gap-3 transition-opacity sm:grid-cols-2 xl:grid-cols-3">
+                @foreach ($this->avancement() as $ligne)
+                    @php
+                        $progression = $ligne->progression();
+                        $ecart = round($ligne->tauxDeclare - $ligne->taux, 1);
+                    @endphp
+
+                    <div
+                        wire:key="avancement-{{ $loop->index }}"
+                        class="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="truncate font-medium text-zinc-900 dark:text-zinc-100">{{ $ligne->equipe }}</div>
+                                <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ $ligne->terminees }}/{{ $ligne->cartes }} {{ Str::plural('carte', $ligne->cartes) }}
+                                    · {{ rtrim(rtrim(number_format($ligne->chargeTotale, 1, ',', ' '), '0'), ',') }} j de charge
+                                    @if ($ligne->enRetard > 0)
+                                        · <span class="text-amber-600 dark:text-amber-400">{{ $ligne->enRetard }} en retard</span>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <div class="shrink-0 text-right">
+                                <div class="text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                                    {{ number_format($ligne->taux, 0) }} %
+                                </div>
+                                @if ($progression != 0.0)
+                                    <div @class([
+                                        'text-xs font-medium tabular-nums',
+                                        'text-emerald-600 dark:text-emerald-400' => $progression > 0,
+                                        'text-red-600 dark:text-red-400' => $progression < 0,
+                                    ])>
+                                        {{ $progression > 0 ? '+' : '' }}{{ number_format($progression, 1, ',', ' ') }} pts
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        {{-- Barre pleine : la charge close. Barre pâle : ce que les
+                             cartes ouvertes déclarent en plus. --}}
+                        <div class="relative h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                            <div class="absolute inset-y-0 left-0 rounded-full bg-blue-200 dark:bg-blue-500/40" style="width: {{ $ligne->tauxDeclare }}%"></div>
+                            <div class="absolute inset-y-0 left-0 rounded-full bg-blue-600 dark:bg-blue-400" style="width: {{ $ligne->taux }}%"></div>
+                        </div>
+
+                        @php $courbe = $ligne->courbe(); @endphp
+                        @if ($courbe !== '')
+                            <svg
+                                viewBox="0 0 100 100"
+                                preserveAspectRatio="none"
+                                class="h-10 w-full text-blue-500 dark:text-blue-400"
+                                aria-hidden="true"
+                            >
+                                <polyline
+                                    points="{{ $courbe }}"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="3"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    vector-effect="non-scaling-stroke"
+                                />
+                            </svg>
+                        @endif
+
+                        <div class="flex items-center justify-between gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            {{-- La courbe commence à la première semaine où l'équipe
+                                 avait des cartes, qui n'est pas toujours la plus ancienne. --}}
+                            <span>
+                                @if ($debut = $ligne->evolution->first())
+                                    depuis le {{ $debut->date->translatedFormat('j F') }}
+                                @endif
+                            </span>
+                            @if ($ecart > 0)
+                                <span title="Travail entamé sur des cartes encore ouvertes">
+                                    déclaré {{ number_format($ligne->tauxDeclare, 0) }} % (+{{ number_format($ecart, 0) }})
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     {{-- Bandes : un seul bloc, ou une bande par équipe métier --}}
     <div class="relative">
