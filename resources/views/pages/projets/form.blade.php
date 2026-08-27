@@ -3,16 +3,19 @@
 use App\Enums\MemberRole;
 use App\Enums\ProjectCategory;
 use App\Enums\ProjectStatus;
+use App\Enums\DeliverableStatus;
 use App\Enums\ProgressStatus;
 use App\Enums\ProjectType;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\User;
+use App\Models\Phase;
 use App\Models\WorkflowStep;
 use App\Services\AvancementService;
 use App\Services\ProjectCodeGenerator;
 use App\Services\ProjectProvisioner;
 use App\Support\Audit\Audit;
+use App\Support\Referentiel\Perimetre;
 use Flux\Flux;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
@@ -78,6 +81,13 @@ new class extends Component
      */
     public array $etapes = [];
 
+    /**
+     * Phases MPM retenues pour ce projet.
+     *
+     * @var array<int, int>
+     */
+    public array $phases = [];
+
     public function mount(?Project $project = null): void
     {
         if (! $project?->exists) {
@@ -111,12 +121,17 @@ new class extends Component
             $this->sponsorId = (string) ($project->sponsor_id ?? '');
             $this->referentTechniqueId = (string) ($project->referent_technique_id ?? '');
             $this->etapes = $project->steps()->pluck('workflow_step_id')->all();
+            $this->phases = $project->phases()->pluck('phase_id')->all();
 
             // Un projet repris d'un import ou d'un jeu de données n'a parfois
-            // aucune étape instanciée : la fiche propose alors le catalogue
-            // complet plutôt que de refuser l'enregistrement.
+            // rien d'instancié : la fiche propose alors le référentiel complet
+            // plutôt que de refuser l'enregistrement.
             if ($this->etapes === []) {
                 $this->cocherToutesLesEtapes();
+            }
+
+            if ($this->phases === []) {
+                $this->cocherToutesLesPhases();
             }
 
             return;
@@ -129,6 +144,7 @@ new class extends Component
         $this->statut = ProjectStatus::EnPreparation->value;
         $this->chefProjetId = (string) auth()->id();
         $this->cocherToutesLesEtapes();
+        $this->cocherToutesLesPhases();
     }
 
     /**
@@ -277,6 +293,7 @@ new class extends Component
         unset($this->etapesDisponibles);
 
         $this->cocherToutesLesEtapes();
+        $this->cocherToutesLesPhases();
     }
 
     public function cocherToutesLesEtapes(): void
@@ -287,6 +304,64 @@ new class extends Component
     public function decocherToutesLesEtapes(): void
     {
         $this->etapes = [];
+    }
+
+    /**
+     * Les 8 phases MPM du référentiel.
+     *
+     * @return Collection<int, Phase>
+     */
+    #[Computed]
+    public function phasesDisponibles(): Collection
+    {
+        return Phase::ordered()->get();
+    }
+
+    public function cocherToutesLesPhases(): void
+    {
+        $this->phases = $this->phasesDisponibles()->pluck('id')->all();
+    }
+
+    public function decocherToutesLesPhases(): void
+    {
+        $this->phases = [];
+    }
+
+    /**
+     * Phases décochées que le projet gardera : une phase entamée, ou dont un
+     * livrable a déjà été produit, ne se retire pas d'un coup de case.
+     *
+     * @return Collection<int, \App\Models\ProjectPhase>
+     */
+    #[Computed]
+    public function phasesIrretirables(): Collection
+    {
+        if (! $this->project) {
+            return collect();
+        }
+
+        $ecartees = $this->project->phases()
+            ->whereNotIn('phase_id', $this->phases ?: [0])
+            ->with('phase')
+            ->get();
+
+        $travaillees = $this->project->deliverables()
+            ->whereIn('phase_id', $ecartees->pluck('phase_id'))
+            ->where(fn ($q) => $q->where('statut', '!=', DeliverableStatus::AProduire->value)
+                ->orWhereNotNull('date_livraison')
+                ->orWhereNotNull('fichier_path')
+                ->orWhereNotNull('lien'))
+            ->pluck('phase_id')
+            ->unique();
+
+        return $ecartees->filter(
+            fn ($phase) => $phase->statut !== ProgressStatus::NonDemarre
+                || $phase->avancement_pct > 0
+                || $phase->date_debut_reelle !== null
+                || $phase->date_fin_reelle !== null
+                || filled($phase->commentaire)
+                || $travaillees->contains($phase->phase_id),
+        )->values();
     }
 
     /**
@@ -397,9 +472,12 @@ new class extends Component
             // présenter au comité : au moins une est exigée.
             'etapes' => ['array', 'min:1'],
             'etapes.*' => ['integer', 'exists:workflow_steps,id'],
+            'phases' => ['array', 'min:1'],
+            'phases.*' => ['integer', 'exists:phases,id'],
         ], attributes: [
             'code' => 'code projet',
             'etapes' => 'étapes du projet',
+            'phases' => 'phases du projet',
             'nom' => 'nom du projet',
             'clientId' => 'client',
             'nouveauClient' => 'nouveau client',
@@ -451,26 +529,34 @@ new class extends Component
                 $this->project->update(['workflow_step_id' => null]);
             }
 
-            $provisioner->provisionner($this->project->refresh(), $donnees['etapes']);
+            $provisioner->provisionner(
+                $this->project->refresh(),
+                new Perimetre(phases: $donnees['phases'], etapes: $donnees['etapes']),
+            );
 
-            // Une étape décochée qui subsiste est une étape que le provisioner a
+            // Ce qui subsiste malgré la décoche est ce que le provisioner a
             // refusé de retirer, du travail y étant consigné.
-            $conservees = $provisioner->etapesConservees($this->project, $donnees['etapes']);
+            $conservees = $provisioner->etapesConservees($this->project, $donnees['etapes'])->count()
+                + $provisioner->phasesConservees($this->project, $donnees['phases'])->count();
 
             $this->etapes = $this->project->steps()->pluck('workflow_step_id')->all();
+            $this->phases = $this->project->phases()->pluck('phase_id')->all();
 
             Flux::toast(variant: 'success', text: 'Projet mis à jour.');
 
-            if ($conservees->isNotEmpty()) {
+            if ($conservees > 0) {
                 Flux::toast(
                     variant: 'warning',
-                    text: $conservees->count().' '.($conservees->count() > 1 ? 'étapes écartées ont été conservées' : 'étape écartée a été conservée')
+                    text: $conservees.' '.($conservees > 1 ? 'éléments écartés ont été conservés' : 'élément écarté a été conservé')
                         .' : du travail y est consigné.',
                 );
             }
         } else {
             $this->project = $this->creerAvecUnCodeLibre($attributs);
-            $provisioner->provisionner($this->project, $donnees['etapes']);
+            $provisioner->provisionner(
+                $this->project,
+                new Perimetre(phases: $donnees['phases'], etapes: $donnees['etapes']),
+            );
 
             Flux::toast(variant: 'success', text: 'Projet créé : le référentiel MPM a été déroulé.');
         }
@@ -634,6 +720,69 @@ new class extends Component
                         </div>
                     @endforeach
                 </div>
+            </section>
+
+            {{-- Phases MPM : un correctif n'a pas de phase d'opportunité, un
+                 déploiement interne pas de généralisation. --}}
+            <section class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                        <flux:heading size="lg">Phases MPM</flux:heading>
+                        <flux:subheading>
+                            Le cycle suivi par ce projet, et les livrables qui vont avec
+                        </flux:subheading>
+                    </div>
+
+                    <flux:badge size="sm" :color="count($phases) ? 'blue' : 'amber'">
+                        {{ count($phases) }} / {{ $this->phasesDisponibles()->count() }}
+                    </flux:badge>
+                </div>
+
+                <div class="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                    <button type="button" wire:click="cocherToutesLesPhases" class="text-zinc-500 underline hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                        Tout cocher
+                    </button>
+                    <button type="button" wire:click="decocherToutesLesPhases" class="text-zinc-500 underline hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                        Tout décocher
+                    </button>
+                </div>
+
+                @error('phases')
+                    <flux:text size="sm" class="mt-2 text-red-600 dark:text-red-400">{{ $message }}</flux:text>
+                @enderror
+
+                <div class="mt-3 space-y-0.5">
+                    @foreach ($this->phasesDisponibles() as $phase)
+                        @php $consignee = $this->phasesIrretirables()->firstWhere('phase_id', $phase->id); @endphp
+
+                        <label
+                            wire:key="phase-{{ $phase->id }}"
+                            class="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        >
+                            <input
+                                type="checkbox"
+                                wire:model.live="phases"
+                                value="{{ $phase->id }}"
+                                class="mt-0.5 size-4 shrink-0 rounded border-zinc-300 text-blue-600 dark:border-zinc-600 dark:bg-zinc-800"
+                            />
+
+                            <span class="min-w-0 flex-1 text-sm">
+                                <span class="tabular-nums text-zinc-400">{{ str_pad((string) $phase->ordre, 2, '0', STR_PAD_LEFT) }}</span>
+                                <span class="text-zinc-800 dark:text-zinc-200">{{ $phase->nom }}</span>
+
+                                @if ($consignee)
+                                    <span class="mt-0.5 block text-xs text-amber-600 dark:text-amber-400">
+                                        Travail ou livrable consigné : la phase sera conservée même décochée.
+                                    </span>
+                                @endif
+                            </span>
+                        </label>
+                    @endforeach
+                </div>
+
+                <flux:text size="sm" class="mt-3 text-zinc-500 dark:text-zinc-400">
+                    Décocher une phase écarte aussi ses livrables types — sauf ceux déjà produits.
+                </flux:text>
             </section>
 
             {{-- Étapes du bandeau d'avancement : tous les projets ne passent pas

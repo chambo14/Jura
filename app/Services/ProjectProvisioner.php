@@ -8,8 +8,10 @@ use App\Enums\ProgressStatus;
 use App\Models\DeliverableType;
 use App\Models\Phase;
 use App\Models\Project;
+use App\Models\ProjectPhase;
 use App\Models\ProjectStep;
 use App\Models\WorkflowStep;
+use App\Support\Referentiel\Perimetre;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -20,21 +22,19 @@ use Illuminate\Support\Facades\DB;
 class ProjectProvisioner
 {
     /**
-     * Applique le référentiel à un projet.
+     * Applique le référentiel à un projet, dans le périmètre retenu pour lui.
      *
-     * `$etapesRetenues` restreint le bandeau d'avancement aux étapes choisies
-     * pour ce projet — tous les projets ne passent pas par le pilote ni la
-     * généralisation. Sans liste, le type de projet donne l'intégralité de
-     * ses étapes, ce qui reste le comportement des appels existants.
-     *
-     * @param  array<int, int>|null  $etapesRetenues  identifiants de WorkflowStep
+     * Sans périmètre, le référentiel s'applique en entier : c'est ce
+     * qu'attendent le jeu de démonstration et la resynchronisation.
      */
-    public function provisionner(Project $project, ?array $etapesRetenues = null): void
+    public function provisionner(Project $project, ?Perimetre $perimetre = null): void
     {
-        DB::transaction(function () use ($project, $etapesRetenues) {
-            $this->instancierPhases($project);
-            $this->instancierEtapes($project, $etapesRetenues);
-            $this->instancierLivrables($project);
+        $perimetre ??= Perimetre::complet();
+
+        DB::transaction(function () use ($project, $perimetre) {
+            $this->instancierPhases($project, $perimetre);
+            $this->instancierEtapes($project, $perimetre);
+            $this->instancierLivrables($project, $perimetre);
             $this->synchroniserPilotage($project);
         });
     }
@@ -55,10 +55,24 @@ class ProjectProvisioner
     }
 
     /**
+     * Phases écartées que le projet conserve malgré tout.
+     *
+     * @param  array<int, int>  $phasesRetenues
+     * @return Collection<int, ProjectPhase>
+     */
+    public function phasesConservees(Project $project, array $phasesRetenues): Collection
+    {
+        return $project->phases()
+            ->whereNotIn('phase_id', $phasesRetenues ?: [0])
+            ->with('phase')
+            ->get();
+    }
+
+    /**
      * Recrée les livrables manquants sans toucher à ceux déjà renseignés.
      * Utile après une mise à jour du référentiel MPM.
      */
-    public function resynchroniserLivrables(Project $project): int
+    public function resynchroniserLivrables(Project $project, ?Perimetre $perimetre = null): int
     {
         $existants = $project->deliverables()
             ->whereNotNull('deliverable_type_id')
@@ -67,7 +81,7 @@ class ProjectProvisioner
 
         $ajoutes = 0;
 
-        foreach ($this->livrablesApplicables($project) as $type) {
+        foreach ($this->livrablesApplicables($project, $perimetre ?? Perimetre::complet()) as $type) {
             if (in_array($type->id, $existants, true)) {
                 continue;
             }
@@ -79,26 +93,83 @@ class ProjectProvisioner
         return $ajoutes;
     }
 
-    private function instancierPhases(Project $project): void
+    private function instancierPhases(Project $project, Perimetre $perimetre): void
     {
-        foreach (Phase::ordered()->get() as $phase) {
+        $phases = Phase::ordered()->get();
+
+        if ($perimetre->restreintLesPhases()) {
+            $this->retirerLesPhasesEcartees($project, $perimetre);
+            $phases = $phases->whereIn('id', $perimetre->phasesRetenues())->values();
+        }
+
+        foreach ($phases as $phase) {
             $project->phases()->firstOrCreate(
                 ['phase_id' => $phase->id],
                 ['ordre' => $phase->ordre, 'statut' => ProgressStatus::NonDemarre],
             );
         }
+
+        // La phase courante doit rester une phase du projet.
+        $courante = $project->phase_id;
+
+        if ($phases->isNotEmpty() && $courante && ! $phases->contains('id', $courante)) {
+            $project->phase_id = $phases->first()->id;
+            $project->save();
+        }
     }
 
     /**
-     * @param  array<int, int>|null  $retenues
+     * Retire les phases écartées — sauf celles où quelque chose est consigné.
+     *
+     * Une phase datée, démarrée, avancée ou commentée témoigne d'un travail
+     * réel, et ses livrables déjà produits en dépendent. L'écarter effacerait
+     * cette trace : elle reste, et l'écran dit pourquoi.
      */
-    private function instancierEtapes(Project $project, ?array $retenues = null): void
+    private function retirerLesPhasesEcartees(Project $project, Perimetre $perimetre): void
+    {
+        $retenues = $perimetre->phasesRetenues();
+
+        $vierges = $project->phases()
+            ->whereNotIn('phase_id', $retenues)
+            ->where('statut', ProgressStatus::NonDemarre->value)
+            ->where('avancement_pct', 0)
+            ->whereNull('date_debut_reelle')
+            ->whereNull('date_fin_reelle')
+            ->whereNull('commentaire')
+            ->pluck('phase_id');
+
+        if ($vierges->isEmpty()) {
+            return;
+        }
+
+        // Un livrable déjà travaillé retient sa phase : le retirer perdrait la
+        // pièce elle-même, et ce n'est pas ce qu'on a demandé en décochant.
+        $retenuesParUnLivrable = $project->deliverables()
+            ->whereIn('phase_id', $vierges)
+            ->where(fn ($q) => $q->where('statut', '!=', DeliverableStatus::AProduire->value)
+                ->orWhereNotNull('date_livraison')
+                ->orWhereNotNull('fichier_path')
+                ->orWhereNotNull('lien'))
+            ->pluck('phase_id')
+            ->unique();
+
+        $retirables = $vierges->diff($retenuesParUnLivrable);
+
+        if ($retirables->isEmpty()) {
+            return;
+        }
+
+        $project->deliverables()->whereIn('phase_id', $retirables)->delete();
+        $project->phases()->whereIn('phase_id', $retirables)->delete();
+    }
+
+    private function instancierEtapes(Project $project, Perimetre $perimetre): void
     {
         $etapes = WorkflowStep::forType($project->type_projet)->get();
 
-        if ($retenues !== null) {
-            $this->retirerLesEtapesEcartees($project, $retenues);
-            $etapes = $etapes->whereIn('id', $retenues)->values();
+        if ($perimetre->restreintLesEtapes()) {
+            $this->retirerLesEtapesEcartees($project, $perimetre->etapesRetenues());
+            $etapes = $etapes->whereIn('id', $perimetre->etapesRetenues())->values();
         }
 
         foreach ($etapes as $etape) {
@@ -137,18 +208,22 @@ class ProjectProvisioner
             ->delete();
     }
 
-    private function instancierLivrables(Project $project): void
+    private function instancierLivrables(Project $project, Perimetre $perimetre): void
     {
         // Passe par la resynchronisation pour rester rejouable sur un projet déjà provisionné.
-        $this->resynchroniserLivrables($project);
+        $this->resynchroniserLivrables($project, $perimetre);
     }
 
     /**
      * @return Collection<int, DeliverableType>
      */
-    private function livrablesApplicables(Project $project): Collection
+    private function livrablesApplicables(Project $project, Perimetre $perimetre): Collection
     {
         return DeliverableType::with('phase')
+            ->when(
+                $perimetre->restreintLesPhases(),
+                fn ($q) => $q->whereIn('phase_id', $perimetre->phasesRetenues()),
+            )
             ->get()
             ->filter(fn (DeliverableType $type) => $type->appliesTo($project->type_projet))
             ->sortBy([

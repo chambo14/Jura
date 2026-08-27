@@ -37,15 +37,26 @@ référent technique parmi les membres d'équipe et les chefs de projet. La Dire
 filtrage d'une liste déroulante ne protégeant que l'écran. Une personne déjà désignée
 avant cette règle reste acceptée : la fiche ne casse pas sur un existant dont elle hérite.
 
-Les **étapes** du bandeau d'avancement se cochent à la création comme à la modification :
-tous les projets ne passent pas par le pilote ni la généralisation. Elles sont toutes
-retenues par défaut, et changer de type de projet recharge le catalogue correspondant —
-13 étapes en déploiement, 14 en développement et en intégration. Une étape décochée sur
-laquelle du travail est consigné — démarrée, datée ou annotée — n'est pas retirée : elle
-témoigne de quelque chose, et l'écran annonce sa conservation avant l'enregistrement.
+Le **périmètre** du référentiel se coche, à la création comme à la modification : tous les
+projets ne suivent pas tout le cycle. Un correctif n'a pas de phase d'opportunité, un
+déploiement interne pas de généralisation.
 
-Les 8 phases MPM ne se choisissent pas : elles sont l'ossature de la méthodologie et
-s'appliquent à tout projet.
+Les **phases MPM** — les huit — se décochent une à une. Écarter une phase écarte aussi les
+livrables types qu'elle réclame : un projet ne doit pas des pièces d'un cycle qu'il ne suit
+pas.
+
+Les **étapes** du bandeau d'avancement se cochent de même. Changer de type de projet
+recharge le catalogue correspondant : 13 étapes en déploiement, 14 en développement et en
+intégration. L'étape courante suit la sélection, pour que le bandeau ne pointe jamais dans
+le vide.
+
+Tout est retenu par défaut, et l'un comme l'autre exigent au moins un élément : un projet
+sans phase ni étape n'a rien à présenter au comité.
+
+Rien de ce qui porte une trace de travail n'est retiré. Une étape démarrée, datée ou
+annotée reste ; une phase entamée, avancée ou commentée reste ; une phase dont un livrable
+a déjà été produit reste, car la retirer emporterait la pièce elle-même. L'écran signale
+ces cas sous la case concernée avant l'enregistrement, et les confirme après.
 
 ### Suivi des délais
 
