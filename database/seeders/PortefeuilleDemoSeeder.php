@@ -75,9 +75,10 @@ class PortefeuilleDemoSeeder extends Seeder
      */
     private function seedUsers(): array
     {
-        // clé => [nom, email, rôle, poste, équipe métier]
+        // clé => [nom, email, rôle, poste, équipe métier, fonction projet ?]
+        // La fonction se déduit du poste, sauf quand l'intitulé ne la porte pas.
         $definitions = [
-            'sandrine' => ['Sandrine YAPO', 'sandrine.yapo14@gmail.com', UserRole::Direction, 'Direction des Projets & Organisation', 'Direction Projets'],
+            'sandrine' => ['Sandrine YAPO', 'sandrine.yapo14@gmail.com', UserRole::Direction, 'Direction des Projets & Organisation', 'Direction Projets', MemberRole::ChefProjet],
 
             'kevin' => ['Kevin ZAGO', 'kevin.zago@demo.local', UserRole::ChefProjet, 'Chef de projet', 'Direction Projets'],
             'anselme' => ['Kouamé ANSELME', 'kouame.anselme@demo.local', UserRole::ChefProjet, 'Chef de projet', 'Direction Projets'],
@@ -117,7 +118,9 @@ class PortefeuilleDemoSeeder extends Seeder
 
         $users = [];
 
-        foreach ($definitions as $cle => [$nom, $email, $role, $poste, $equipe]) {
+        foreach ($definitions as $cle => $definition) {
+            [$nom, $email, $role, $poste, $equipe] = $definition;
+
             $users[$cle] = User::updateOrCreate(
                 ['email' => $email],
                 [
@@ -127,7 +130,7 @@ class PortefeuilleDemoSeeder extends Seeder
                     // Le poste dit le métier en toutes lettres ; la fonction
                     // en est la forme structurée, qui décide des rôles
                     // proposés sur une fiche projet.
-                    'fonction' => MemberRole::depuisUnPoste($poste),
+                    'fonction' => $definition[5] ?? MemberRole::depuisUnPoste($poste),
                     'equipe' => $equipe,
                     'actif' => true,
                     'password' => 'password',
