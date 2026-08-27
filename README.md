@@ -461,7 +461,7 @@ $noms = (tar.exe -tzf $tgz) -replace '^\./',''
     ForEach-Object { "{0,-32} {1}" -f $_, $(if ($noms -contains $_) { "OK" } else { "MANQUANT" }) }
 ```
 
-Sur le serveur : sauvegarder la base (**Copy**), déplier l'archive dans le dossier qui
+Sur le serveur : sauvegarder la base (**Compress**), déplier l'archive dans le dossier qui
 contient `artisan` en écrasant, supprimer l'archive, puis dérouler la mise à jour
 ci-dessous.
 
