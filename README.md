@@ -357,9 +357,23 @@ que le format ZIP interdit. Déplié sur un serveur Linux, un tel fichier ne rec
 l'arborescence : il pose des milliers de fichiers dont le *nom* contient des antislashs.
 Le format tar n'a pas cette ambiguïté.
 
-**Sauvegarder la base par copie, jamais par renommage.** Un *Rename* laisse le projet
-sans `database/database.sqlite` : le site tombe, et la mise à jour échoue au premier
-accès à la base.
+**Sauvegarder la base en la compressant, jamais en la déplaçant.** Dans le gestionnaire
+de fichiers cPanel, sélectionner `database/database.sqlite` et cliquer **Compress** pour
+produire une archive dans le même dossier. L'original n'est alors jamais touché.
+
+Ne pas passer par *Copy*. Le bouton voisin est *Move*, la boîte de dialogue est la même,
+et un clic sur le mauvais déplace le fichier au lieu de le dupliquer — le projet se
+retrouve sans `database/database.sqlite`, le site tombe, et la mise à jour échoue dès la
+première requête sur la base :
+
+```
+Database file at path [/home/…/database/database.sqlite] does not exist.
+(Connection: sqlite, SQL: delete from "cache")
+```
+
+C'est arrivé deux fois en conditions réelles. La réparation consiste à recopier la
+sauvegarde vers `database.sqlite`, mais mieux vaut ne pas en avoir besoin : *Compress*
+ne peut pas se tromper de geste.
 
 Sur le poste de développement, une fois `composer install --no-dev --optimize-autoloader`
 passé — `npm run build` n'étant nécessaire que si les assets compilés du dépôt ne sont
