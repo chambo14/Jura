@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\EstAudite;
 use App\Concerns\HasAttachments;
 use App\Enums\ProjectCategory;
 use App\Enums\ProjectStatus;
@@ -66,7 +67,7 @@ use Illuminate\Support\Collection;
 ])]
 class Project extends Model
 {
-    use HasAttachments;
+    use EstAudite, HasAttachments;
 
     /** @use HasFactory<ProjectFactory> */
     use HasFactory;
@@ -291,5 +292,35 @@ class Project extends Model
                 ->orWhere('referent_technique_id', $user->id)
                 ->orWhereHas('members', fn (Builder $m) => $m->where('user_id', $user->id));
         });
+    }
+
+    /**
+     * Attributs dont chaque variation est consignée au journal d'audit.
+     *
+     * @return array<int, string>
+     */
+    public static function attributsAudites(): array
+    {
+        return [
+            'statut',
+            'categorie',
+            'ordre_comite',
+            'avancement_pct',
+            'taux_realisation_pct',
+            'date_debut',
+            'date_fin_initiale',
+            'date_fin_revisee',
+            'chef_projet_id',
+            'back_up_id',
+            'sponsor_id',
+            'referent_technique_id',
+            'phase_id',
+            'workflow_step_id',
+        ];
+    }
+
+    public function projetAudite(): ?int
+    {
+        return $this->id;
     }
 }

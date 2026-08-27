@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\EstAudite;
 use App\Concerns\HasAttachments;
 use App\Concerns\SuitUneEcheance;
 use App\Contracts\PorteUneEcheance;
@@ -45,7 +46,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class Task extends Model implements PorteUneEcheance
 {
-    use HasAttachments, SuitUneEcheance;
+    use EstAudite, HasAttachments, SuitUneEcheance;
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -153,5 +154,28 @@ class Task extends Model implements PorteUneEcheance
         return $query->whereNotIn('statut', [ProgressStatus::Termine->value, ProgressStatus::Annule->value])
             ->whereNotNull('date_echeance')
             ->whereDate('date_echeance', '<=', $au->toDateString());
+    }
+
+    /**
+     * Attributs dont chaque variation est consignée au journal d'audit.
+     *
+     * @return array<int, string>
+     */
+    public static function attributsAudites(): array
+    {
+        return [
+            'statut',
+            'priorite',
+            'avancement_pct',
+            'charge_jours',
+            'date_echeance',
+            'date_realisation',
+            'assignee_id',
+        ];
+    }
+
+    public function projetAudite(): ?int
+    {
+        return $this->project_id;
     }
 }

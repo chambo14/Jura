@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\EstAudite;
 use App\Concerns\HasAttachments;
 use App\Concerns\SuitUneEcheance;
 use App\Contracts\PorteUneEcheance;
@@ -40,7 +41,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class Deliverable extends Model implements PorteUneEcheance
 {
-    use HasAttachments, SuitUneEcheance;
+    use EstAudite, HasAttachments, SuitUneEcheance;
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -119,5 +120,26 @@ class Deliverable extends Model implements PorteUneEcheance
                 DeliverableStatus::EnCours->value,
                 DeliverableStatus::Rejete->value,
             ]);
+    }
+
+    /**
+     * Attributs dont chaque variation est consignée au journal d'audit.
+     *
+     * @return array<int, string>
+     */
+    public static function attributsAudites(): array
+    {
+        return [
+            'statut',
+            'obligatoire',
+            'date_prevue',
+            'date_livraison',
+            'responsable_id',
+        ];
+    }
+
+    public function projetAudite(): ?int
+    {
+        return $this->project_id;
     }
 }

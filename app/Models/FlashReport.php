@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\EstAudite;
 use App\Enums\FlashItemType;
 use App\Enums\FlashReportStatus;
 use App\Enums\HealthStatus;
@@ -42,6 +43,8 @@ use Illuminate\Support\Collection;
 ])]
 class FlashReport extends Model
 {
+    use EstAudite;
+
     /** @return array<string, string> */
     protected function casts(): array
     {
@@ -114,5 +117,28 @@ class FlashReport extends Model
     public function scopePourSemaine(Builder $query, CarbonInterface $lundi): Builder
     {
         return $query->whereDate('semaine_du', $lundi->toDateString());
+    }
+
+    /**
+     * Attributs dont chaque variation est consignée au journal d'audit.
+     *
+     * @return array<int, string>
+     */
+    public static function attributsAudites(): array
+    {
+        return [
+            'statut',
+            'sante',
+            'avancement_pct',
+            'taux_realisation_pct',
+            'date_fin_revisee',
+            'workflow_step_id',
+            'phase_id',
+        ];
+    }
+
+    public function projetAudite(): ?int
+    {
+        return $this->project_id;
     }
 }

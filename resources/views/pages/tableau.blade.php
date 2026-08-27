@@ -11,6 +11,7 @@ use App\Services\AiSuggestionService;
 use App\Services\AttachmentService;
 use App\Services\AvancementService;
 use App\Services\ChargeService;
+use App\Support\Audit\Audit;
 use App\Support\Avancement\AvancementEquipe;
 use App\Support\Echeances\Echeances;
 use Flux\Flux;
@@ -260,7 +261,10 @@ new class extends Component {
         $cible = ProgressStatus::from($statut);
 
         if ($cible !== $carte->statut) {
-            $carte->update($this->changementDeStatut($carte, $cible));
+            Audit::pour(
+                'Déplacement sur le tableau',
+                fn () => $carte->update($this->changementDeStatut($carte, $cible)),
+            );
         }
 
         $colonne = $this->cartes()
@@ -406,7 +410,7 @@ new class extends Component {
         }
 
         if ($carte) {
-            $carte->update($attributs);
+            Audit::pour('Modification de la carte', fn () => $carte->update($attributs));
         } else {
             $carte = $projet->tasks()->create($attributs + [
                 'ordre' => (int) $projet->tasks()->max('ordre') + 1,

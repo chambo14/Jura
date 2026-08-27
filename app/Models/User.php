@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-use App\Enums\Permission;
+use App\Concerns\EstAudite;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\Permission;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -43,7 +44,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+    use EstAudite, HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
     /**
      * Get the attributes that should be cast.
@@ -142,5 +143,28 @@ class User extends Authenticatable implements PasskeyUser
     public function scopeActifs(Builder $query): Builder
     {
         return $query->where('actif', true);
+    }
+
+    /**
+     * Attributs dont chaque variation est consignée au journal d'audit.
+     *
+     * Le profil et l'activation sont des droits d'accès : leur changement est
+     * une décision, pas un réglage.
+     *
+     * @return array<int, string>
+     */
+    public static function attributsAudites(): array
+    {
+        return [
+            'profile_id',
+            'actif',
+            'email',
+            'equipe',
+        ];
+    }
+
+    public function projetAudite(): ?int
+    {
+        return null;
     }
 }

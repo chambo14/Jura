@@ -7,6 +7,7 @@ use App\Models\FlashReport;
 use App\Models\FlashReportItem;
 use App\Services\AiSuggestionService;
 use App\Services\FlashReportBuilder;
+use App\Support\Audit\Audit;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -228,7 +229,10 @@ new class extends Component {
 
         $this->enregistrer();
 
-        app(FlashReportBuilder::class)->publier($this->flashReport);
+        Audit::pour(
+            'Publication du flash report',
+            fn () => app(FlashReportBuilder::class)->publier($this->flashReport),
+        );
 
         $this->flashReport->refresh()->load(['items', 'project.steps.workflowStep']);
 
@@ -239,7 +243,10 @@ new class extends Component {
     {
         $this->authorize('unpublish', $this->flashReport);
 
-        $this->flashReport->update(['statut' => FlashReportStatus::Brouillon, 'publie_at' => null]);
+        Audit::pour(
+            'Retour du flash report en brouillon',
+            fn () => $this->flashReport->update(['statut' => FlashReportStatus::Brouillon, 'publie_at' => null]),
+        );
         $this->flashReport->refresh();
 
         Flux::toast(variant: 'success', text: 'Flash report repassé en brouillon.');

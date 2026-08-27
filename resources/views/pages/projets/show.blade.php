@@ -23,6 +23,7 @@ new class extends Component {
         'tableau' => ['libelle' => 'Tableau', 'icone' => 'view-columns'],
         'documents' => ['libelle' => 'Documents', 'icone' => 'paper-clip'],
         'rapports' => ['libelle' => 'Flash reports', 'icone' => 'bolt'],
+        'historique' => ['libelle' => 'Historique', 'icone' => 'clock'],
     ];
 
     public function mount(Project $project): void
@@ -145,6 +146,10 @@ new class extends Component {
 
             @case('rapports')
                 <livewire:pages::projets.onglets.rapports :project="$project" :key="'rapports-'.$project->id" />
+                @break
+
+            @case('historique')
+                <livewire:pages::projets.onglets.historique :project="$project" :key="'historique-'.$project->id" />
                 @break
 
             @default

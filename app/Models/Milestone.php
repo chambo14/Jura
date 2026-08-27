@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\EstAudite;
 use App\Concerns\SuitUneEcheance;
 use App\Contracts\PorteUneEcheance;
 use App\Enums\GovernanceBody;
@@ -33,7 +34,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class Milestone extends Model implements PorteUneEcheance
 {
-    use SuitUneEcheance;
+    use EstAudite, SuitUneEcheance;
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -90,5 +91,24 @@ class Milestone extends Model implements PorteUneEcheance
     {
         return $query->whereNotIn('statut', [ProgressStatus::Termine->value, ProgressStatus::Annule->value])
             ->whereDate('date_prevue', '<', now());
+    }
+
+    /**
+     * Attributs dont chaque variation est consignée au journal d'audit.
+     *
+     * @return array<int, string>
+     */
+    public static function attributsAudites(): array
+    {
+        return [
+            'statut',
+            'date_prevue',
+            'date_reelle',
+        ];
+    }
+
+    public function projetAudite(): ?int
+    {
+        return $this->project_id;
     }
 }

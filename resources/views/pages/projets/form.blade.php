@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\User;
 use App\Services\AvancementService;
 use App\Services\ProjectProvisioner;
+use App\Support\Audit\Audit;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -229,7 +230,7 @@ new class extends Component {
         if ($this->project) {
             $typeChange = $this->project->type_projet->value !== $attributs['type_projet'];
 
-            $this->project->update($attributs);
+            Audit::pour('Modification de la fiche projet', fn () => $this->project->update($attributs));
 
             // Un changement de type refait le bandeau d'avancement propre au nouveau type.
             if ($typeChange) {
