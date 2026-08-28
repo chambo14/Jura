@@ -492,23 +492,16 @@ new #[Title('Tableau de bord')] class extends Component {
                                     @endif
                                 </td>
 
-                                {{-- Évolution --}}
+                                {{-- Évolution : la barre porte le repère de l'attendu à date.
+                                     L'écart chiffré n'est pas répété ici — au-delà du seuil de
+                                     tolérance, la colonne Statut l'énonce en toutes lettres ; en
+                                     deçà, il n'appelle aucune décision. --}}
                                 <td class="w-40 px-3 py-3">
                                     <x-progress-bar
                                         :value="$projet->avancement_pct"
                                         :target="$sante->avancementTheoriquePct"
                                         color="green"
                                     />
-                                    @if ($sante->avancementTheoriquePct !== null)
-                                        @php $ecartProjet = $projet->avancement_pct - $sante->avancementTheoriquePct; @endphp
-                                        <div @class([
-                                            'mt-1 text-xs tabular-nums',
-                                            'text-red-600 dark:text-red-400' => $ecartProjet < 0,
-                                            'text-green-600 dark:text-green-400' => $ecartProjet >= 0,
-                                        ])>
-                                            {{ $ecartProjet >= 0 ? '+' : '' }}{{ number_format($ecartProjet, 1, ',', ' ') }} pts / attendu
-                                        </div>
-                                    @endif
                                 </td>
 
                                 {{-- Statut : délai expiré et alerte sont deux signaux distincts --}}
