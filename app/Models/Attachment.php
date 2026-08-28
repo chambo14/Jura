@@ -116,6 +116,21 @@ class Attachment extends Model
     }
 
     /**
+     * Le fichier peut-il être lu dans le navigateur, sans téléchargement ?
+     *
+     * La liste s'arrête aux formats que le contrôleur de lecture accepte —
+     * ceux qu'un navigateur affiche sans rien exécuter. Un document
+     * bureautique ne s'ouvre pas dans une page ; le HTML et le SVG le
+     * pourraient, et c'est précisément pourquoi ils en sont exclus.
+     */
+    public function estLisible(): bool
+    {
+        $extension = Str::lower(pathinfo($this->nom, PATHINFO_EXTENSION));
+
+        return in_array($extension, ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'txt'], true);
+    }
+
+    /**
      * Le fichier est-il encore présent sur le disque ? Un dépôt manuel sur
      * l'hébergement peut laisser la ligne sans son fichier.
      */

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\AttachmentPreviewController;
 use App\Http\Controllers\ComiteExportController;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +29,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Les fichiers déposés ne sont jamais servis depuis le disque public :
     // le contrôleur revérifie l'accès au projet à chaque téléchargement.
     Route::get('documents/{attachment}', AttachmentController::class)->name('documents.download');
+
+    // Lire sans télécharger. Le contrôleur n'affiche que les formats inertes
+    // et refuse tout le reste : la page est servie dans l'origine du site.
+    Route::get('documents/{attachment}/lire', AttachmentPreviewController::class)->name('documents.lire');
 
     Route::livewire('comite', 'pages::comite')->name('comite');
 

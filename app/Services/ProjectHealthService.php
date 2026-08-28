@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\HealthStatus;
 use App\Models\Project;
 use App\Support\Alert;
+use App\Support\Livrables\PhaseNonAboutie;
 use App\Support\ProjectHealth;
 use Illuminate\Support\Collection;
 
@@ -14,6 +15,10 @@ use Illuminate\Support\Collection;
  */
 class ProjectHealthService
 {
+    public function __construct(
+        private readonly AboutissementService $aboutissement,
+    ) {}
+
     /**
      * Écart toléré entre avancement déclaré et avancement théorique avant alerte.
      */
@@ -48,6 +53,7 @@ class ProjectHealthService
         $this->verifierJalons($project, $alertes);
         $this->verifierTaches($project, $alertes);
         $this->verifierLivrables($project, $alertes);
+        $this->verifierAboutissement($project, $alertes);
 
         return new ProjectHealth(
             statut: $this->consolider($alertes),
@@ -195,6 +201,39 @@ class ProjectHealthService
         $alertes->push($obligatoires->isNotEmpty()
             ? Alert::rouge('livrables', $obligatoires->count().' livrable(s) obligatoire(s) en retard', $detail)
             : Alert::orange('livrables', $enRetard->count().' livrable(s) en retard', $detail));
+    }
+
+    /**
+     * Une phase que le projet a dépassée sans en avoir versé les livrables.
+     *
+     * C'est la seule alerte qui ne se déduit ni d'une date ni d'un statut
+     * déclaré : elle constate qu'il n'y a rien à montrer. Un cadrage donné
+     * pour terminé sans note de cadrage laisse tout ce qui suit sans base.
+     *
+     * @param  Collection<int, Alert>  $alertes
+     */
+    private function verifierAboutissement(Project $project, Collection $alertes): void
+    {
+        $constats = $this->aboutissement->phasesNonAbouties($project);
+
+        if ($constats->isEmpty()) {
+            return;
+        }
+
+        $graves = $constats->filter(fn (PhaseNonAboutie $constat) => $constat->grave());
+
+        $libelle = $constats->count() === 1
+            ? $constats->first()->phase->nom.' : étape non aboutie, livrable manquant'
+            : $constats->count().' étapes non abouties, livrables manquants';
+
+        $detail = $constats
+            ->take(3)
+            ->map(fn (PhaseNonAboutie $constat) => $constat->phase->nom.' — '.$constat->libelle())
+            ->implode(' · ');
+
+        $alertes->push($graves->isNotEmpty()
+            ? Alert::rouge('aboutissement', $libelle, $detail)
+            : Alert::orange('aboutissement', $libelle, $detail));
     }
 
     /**

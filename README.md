@@ -89,6 +89,26 @@ rattachés à leur phase et à leur entité responsable. Un livrable restreint �
 projet (ex. *Plan de migration des données*) n'est créé que là où il s'applique.
 `Recharger le référentiel MPM` rattrape les livrables ajoutés au référentiel après coup.
 
+**Chaque livrable porte ses pièces.** Le bouton de dépôt, sur la ligne du livrable, y verse un
+ou plusieurs fichiers. Ils se lisent ensuite sur place — PDF, images et textes s'ouvrent dans un
+onglet — ou se téléchargent. Un lien vers un document tenu ailleurs (SharePoint, Drive) vaut
+pièce au même titre qu'un fichier.
+
+**Un statut n'est pas une pièce.** Le statut se déclare ; le livrable, lui, se produit. Un
+livrable coché *Soumis* ou *Validé* sans fichier ni lien est signalé comme tel : `Aucune pièce
+versée`.
+
+**Étape non aboutie.** Une phase que le projet a dépassée — parce qu'elle est déclarée terminée,
+ou parce qu'une phase postérieure a démarré — doit avoir versé ses livrables obligatoires. Si
+elle ne l'a pas fait, l'en-tête de la phase l'annonce (`Étape non aboutie`) et le diagnostic du
+projet lève une alerte qui remonte au tableau de bord, au flash report et au comité. Concrètement :
+on ne clôt pas le cadrage sans note de cadrage, et si on le fait quand même, l'application le dit
+plutôt que de l'enregistrer en silence.
+
+L'alerte est **rouge** quand la phase est donnée pour terminée — c'est une contradiction — et
+**orange** quand la phase est seulement dépassée par les suivantes : c'est un retard. Un livrable
+facultatif, ou marqué *Non applicable*, ne bloque rien.
+
 ### Tableau des équipes
 
 Un **kanban** dresse le travail en cours, au niveau d'un projet (onglet *Tableau*) ou du
@@ -120,6 +140,16 @@ disque privé sous un nom aléatoire, et chaque téléchargement repasse par le 
 d'accès du projet. Le nom d'origine est conservé pour l'affichage et restitué au
 téléchargement. Qui voit le projet télécharge ; qui y contribue dépose et retire, chacun
 pouvant retirer ce qu'il a lui-même déposé.
+
+Un fichier se **lit** aussi sans le télécharger : cliquer son nom l'ouvre dans un onglet.
+Cette commodité a une contrepartie — la page est servie depuis l'origine de l'application,
+où un document capable d'exécuter du script emprunterait la session de son lecteur. Trois
+garde-fous : seuls les formats inertes sont affichés (PDF, images matricielles, texte brut —
+jamais le HTML ni le SVG, que le dépôt accepte pourtant) ; le type est établi à partir du
+contenu réel du fichier, jamais de ce qu'annonçait le navigateur au dépôt, de sorte qu'un
+exécutable renommé en `.pdf` est refusé ; et les en-têtes interdisent au navigateur de
+renifler un autre type comme à la page de charger quoi que ce soit. Tout ce qui n'est pas
+affichable reste téléchargeable, ce qui ne l'exécute nulle part.
 
 Taille et formats acceptés se règlent dans `config/documents.php` (20 Mo par fichier et
 les formats bureautiques, images et archives, par défaut).

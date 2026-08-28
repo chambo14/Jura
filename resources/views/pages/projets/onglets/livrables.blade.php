@@ -5,15 +5,29 @@ use App\Models\Deliverable;
 use App\Models\Phase;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\AboutissementService;
+use App\Services\AttachmentService;
 use App\Services\ProjectProvisioner;
 use App\Support\Echeances\Echeances;
+use App\Support\Livrables\PhaseNonAboutie;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new class extends Component {
+    use WithFileUploads;
+
     public Project $project;
+
+    /**
+     * Livrable visé par le dépôt en cours.
+     */
+    public ?int $livrablePourFichier = null;
+
+    /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
+    public array $fichiers = [];
 
     public string $filtreStatut = '';
 
@@ -69,7 +83,7 @@ new class extends Component {
     public function groupes(): Collection
     {
         return $this->project->deliverables()
-            ->with(['phase', 'responsable', 'type'])
+            ->with(['phase', 'responsable', 'type', 'attachments.deposePar'])
             ->when($this->filtreStatut !== '', fn ($q) => $q->where('statut', $this->filtreStatut))
             ->when($this->seulementObligatoires, fn ($q) => $q->where('obligatoire', true))
             ->get()
@@ -120,6 +134,27 @@ new class extends Component {
     }
 
     /**
+     * Les phases que le projet a dépassées sans en avoir versé les livrables,
+     * indexées par phase pour que l'en-tête de chacune puisse le dire.
+     *
+     * @return Collection<int, PhaseNonAboutie>
+     */
+    #[Computed]
+    public function nonAbouties(): Collection
+    {
+        return app(AboutissementService::class)
+            ->phasesNonAbouties($this->project)
+            ->keyBy(fn (PhaseNonAboutie $constat) => $constat->phase->id);
+    }
+
+    public function livrableCible(): ?Deliverable
+    {
+        return $this->livrablePourFichier === null
+            ? null
+            : $this->project->deliverables()->find($this->livrablePourFichier);
+    }
+
+    /**
      * Changement de statut direct depuis la liste.
      */
     public function changerStatut(int $id, string $statut): void
@@ -137,7 +172,72 @@ new class extends Component {
         ]);
 
         $this->project->load('deliverables');
-        unset($this->groupes, $this->synthese);
+        unset($this->groupes, $this->synthese, $this->nonAbouties);
+    }
+
+    /**
+     * Ouvre le dépôt de pièces pour un livrable donné.
+     */
+    public function deposerSur(int $id): void
+    {
+        $this->authorize('contribute', $this->project);
+
+        $this->project->deliverables()->findOrFail($id);
+
+        $this->reset('fichiers');
+        $this->livrablePourFichier = $id;
+
+        Flux::modal('piece-livrable')->show();
+    }
+
+    public function enregistrerPieces(): void
+    {
+        $this->authorize('contribute', $this->project);
+
+        $livrable = $this->livrableCible();
+
+        if (! $livrable) {
+            return;
+        }
+
+        $extensions = implode(',', (array) config('documents.extensions'));
+
+        $this->validate([
+            'fichiers' => ['required', 'array', 'min:1', 'max:10'],
+            'fichiers.*' => ['file', 'max:'.(int) config('documents.taille_max_ko'), 'mimes:'.$extensions],
+        ], attributes: ['fichiers' => 'fichiers', 'fichiers.*' => 'fichier']);
+
+        $service = app(AttachmentService::class);
+
+        foreach ($this->fichiers as $fichier) {
+            $service->deposer($livrable, $fichier, auth()->user());
+        }
+
+        $nombre = count($this->fichiers);
+
+        $this->reset('fichiers', 'livrablePourFichier');
+        $this->project->load('deliverables');
+        unset($this->groupes, $this->synthese, $this->nonAbouties);
+
+        Flux::modal('piece-livrable')->close();
+        Flux::toast(
+            variant: 'success',
+            text: $nombre > 1 ? $nombre.' fichiers versés au livrable.' : 'Fichier versé au livrable.',
+        );
+    }
+
+    public function retirerFichier(int $id): void
+    {
+        $piece = $this->project->documents()->findOrFail($id);
+
+        $this->authorize('delete', $piece);
+
+        app(AttachmentService::class)->supprimer($piece);
+
+        $this->project->load('deliverables');
+        unset($this->groupes, $this->synthese, $this->nonAbouties);
+
+        Flux::toast(variant: 'success', text: 'Fichier retiré.');
     }
 
     public function nouveauLivrable(): void
@@ -217,7 +317,7 @@ new class extends Component {
         }
 
         $this->project->load('deliverables');
-        unset($this->groupes, $this->synthese);
+        unset($this->groupes, $this->synthese, $this->nonAbouties);
 
         Flux::modal('livrable')->close();
         Flux::toast(variant: 'success', text: 'Livrable enregistré.');
@@ -229,7 +329,7 @@ new class extends Component {
 
         $this->project->deliverables()->whereKey($id)->delete();
         $this->project->load('deliverables');
-        unset($this->groupes, $this->synthese);
+        unset($this->groupes, $this->synthese, $this->nonAbouties);
 
         Flux::toast(variant: 'success', text: 'Livrable supprimé.');
     }
@@ -244,7 +344,7 @@ new class extends Component {
         $ajoutes = app(ProjectProvisioner::class)->resynchroniserLivrables($this->project);
 
         $this->project->load('deliverables');
-        unset($this->groupes, $this->synthese);
+        unset($this->groupes, $this->synthese, $this->nonAbouties);
 
         Flux::toast(
             variant: 'success',
@@ -305,9 +405,20 @@ new class extends Component {
                     <span class="text-xs font-mono text-zinc-400">{{ $groupe['phase']->ordre }}</span>
                     <h3 class="font-semibold text-zinc-800 dark:text-zinc-100">{{ $groupe['phase']->nom }}</h3>
                 </div>
-                <flux:text size="sm">
-                    {{ $groupe['livrables']->filter(fn ($l) => $l->estDisponible())->count() }}/{{ $groupe['livrables']->count() }} disponibles
-                </flux:text>
+                <div class="flex items-center gap-2">
+                    {{-- Le constat d'aboutissement porte sur la phase, pas sur un
+                         livrable isolé : c'est l'étape entière qui reste ouverte
+                         tant que sa pièce n'est pas versée. --}}
+                    @php $constat = $this->nonAbouties()->get($groupe['phase']->id); @endphp
+                    @if ($constat)
+                        <flux:badge :color="$constat->grave() ? 'red' : 'amber'" size="sm">
+                            Étape non aboutie
+                        </flux:badge>
+                    @endif
+                    <flux:text size="sm">
+                        {{ $groupe['livrables']->filter(fn ($l) => $l->estDisponible())->count() }}/{{ $groupe['livrables']->count() }} disponibles
+                    </flux:text>
+                </div>
             </header>
 
             <div class="divide-y divide-zinc-100 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
@@ -326,6 +437,12 @@ new class extends Component {
                                 @if (! $livrable->obligatoire)
                                     <flux:badge color="zinc" size="sm">Facultatif</flux:badge>
                                 @endif
+                                {{-- Un livrable donné pour produit sans rien à
+                                     montrer : le statut se déclare, la pièce se
+                                     verse. --}}
+                                @if ($livrable->pieceManquante())
+                                    <flux:badge color="red" size="sm">Aucune pièce versée</flux:badge>
+                                @endif
                                 @if ($livrable->version)
                                     <span class="text-xs text-zinc-400">v{{ $livrable->version }}</span>
                                 @endif
@@ -342,6 +459,16 @@ new class extends Component {
                                     <span>Livré le {{ $livrable->date_livraison->format('d/m/Y') }}</span>
                                 @endif
                             </div>
+
+                            {{-- Les pièces du livrable, lisibles sur place quand le
+                                 format s'y prête, téléchargeables toujours. --}}
+                            @if ($livrable->attachments->isNotEmpty())
+                                <x-attachment-list
+                                    :attachments="$livrable->attachments"
+                                    :peut-retirer="$this->peutContribuer()"
+                                    class="mt-1"
+                                />
+                            @endif
                         </div>
 
                         @if ($this->peutContribuer())
@@ -356,6 +483,15 @@ new class extends Component {
                                     </flux:select.option>
                                 @endforeach
                             </flux:select>
+
+                            <flux:button
+                                wire:click="deposerSur({{ $livrable->id }})"
+                                icon="arrow-up-tray"
+                                variant="ghost"
+                                size="xs"
+                                inset
+                                title="Verser un fichier à ce livrable"
+                            />
 
                             <flux:button wire:click="editerLivrable({{ $livrable->id }})" icon="pencil-square" variant="ghost" size="xs" inset />
                         @else
@@ -381,6 +517,38 @@ new class extends Component {
             <flux:text>Aucun livrable ne correspond à ces critères.</flux:text>
         </div>
     @endforelse
+
+    {{-- Dépôt d'une pièce sur un livrable --}}
+    <flux:modal name="piece-livrable" class="md:w-[32rem]">
+        <form wire:submit="enregistrerPieces" class="space-y-5">
+            <div>
+                <flux:heading size="lg">Verser une pièce</flux:heading>
+                @php $cible = $this->livrableCible(); @endphp
+                @if ($cible)
+                    <flux:subheading>{{ $cible->nom }}</flux:subheading>
+                @endif
+            </div>
+
+            <flux:input
+                type="file"
+                wire:model="fichiers"
+                label="Fichiers"
+                multiple
+                description="{{ implode(', ', (array) config('documents.extensions')) }} — {{ (int) (config('documents.taille_max_ko') / 1024) }} Mo par fichier"
+            />
+
+            <div wire:loading wire:target="fichiers">
+                <flux:text size="sm">Transfert en cours…</flux:text>
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">Annuler</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary">Verser</flux:button>
+            </div>
+        </form>
+    </flux:modal>
 
     {{-- Modale livrable --}}
     <flux:modal name="livrable" class="md:w-[32rem]">

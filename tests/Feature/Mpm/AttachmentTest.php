@@ -131,6 +131,88 @@ class AttachmentTest extends TestCase
             ->assertDownload('note.pdf');
     }
 
+    /**
+     * Lire sans télécharger : le fichier s'affiche dans l'onglet, ce qui évite
+     * de sortir de l'application pour consulter une note de cadrage.
+     */
+    public function test_un_pdf_se_lit_dans_le_navigateur(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create();
+        $project = Project::factory()->create(['chef_projet_id' => $chef->id]);
+
+        $piece = app(AttachmentService::class)->deposer(
+            $project,
+            UploadedFile::fake()->createWithContent('note de cadrage.pdf', '%PDF-1.4 contenu'),
+            $chef,
+        );
+
+        $reponse = $this->actingAs($chef)->get(route('documents.lire', $piece))->assertOk();
+
+        $this->assertSame('application/pdf', $reponse->headers->get('content-type'));
+        $this->assertStringStartsWith('inline', (string) $reponse->headers->get('content-disposition'));
+        $this->assertSame('nosniff', $reponse->headers->get('x-content-type-options'));
+    }
+
+    /**
+     * Le fichier est servi depuis l'origine de l'application : un document
+     * capable d'exécuter du script y emprunterait la session de son lecteur.
+     * Le dépôt accepte le SVG, la lecture le refuse.
+     */
+    public function test_un_document_actif_ne_se_lit_pas_dans_le_navigateur(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create();
+        $project = Project::factory()->create(['chef_projet_id' => $chef->id]);
+
+        $piece = app(AttachmentService::class)->deposer(
+            $project,
+            UploadedFile::fake()->createWithContent(
+                'logo.svg',
+                '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+            ),
+            $chef,
+        );
+
+        $this->actingAs($chef)->get(route('documents.lire', $piece))->assertNotFound();
+        $this->actingAs($chef)->get(route('documents.download', $piece))->assertOk();
+    }
+
+    /**
+     * Le type servi vient du contenu réel, jamais de ce qu'annonçait le
+     * navigateur au dépôt : autrement, il suffirait de mentir à l'envoi.
+     */
+    public function test_un_fichier_deguise_en_pdf_ne_se_lit_pas(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create();
+        $project = Project::factory()->create(['chef_projet_id' => $chef->id]);
+
+        $piece = app(AttachmentService::class)->deposer(
+            $project,
+            UploadedFile::fake()->createWithContent(
+                'piege.pdf',
+                '<html><script>alert(1)</script></html>',
+            ),
+            $chef,
+        );
+
+        $this->actingAs($chef)->get(route('documents.lire', $piece))->assertNotFound();
+    }
+
+    public function test_la_lecture_suit_les_droits_du_projet(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create();
+        $project = Project::factory()->create(['chef_projet_id' => $chef->id]);
+
+        $piece = app(AttachmentService::class)->deposer(
+            $project,
+            UploadedFile::fake()->createWithContent('note.pdf', '%PDF-1.4 contenu'),
+            $chef,
+        );
+
+        $etranger = User::factory()->role(UserRole::Membre)->create();
+
+        $this->actingAs($etranger)->get(route('documents.lire', $piece))->assertForbidden();
+    }
+
     public function test_retirer_une_piece_efface_aussi_le_fichier(): void
     {
         $chef = User::factory()->role(UserRole::ChefProjet)->create();

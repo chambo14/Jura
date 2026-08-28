@@ -86,6 +86,31 @@ class Deliverable extends Model implements PorteUneEcheance
         return in_array($this->statut, [DeliverableStatus::Soumis, DeliverableStatus::Valide], true);
     }
 
+    /**
+     * Le livrable est-il réellement versé au projet ?
+     *
+     * Le statut se déclare ; la pièce, elle, se produit. Un livrable coché
+     * « validé » sans document ni lien n'est pas un livrable : c'est une
+     * intention. C'est cette distinction qui permet de dire qu'une phase
+     * n'est pas aboutie alors même qu'on la donne pour terminée.
+     */
+    public function estFourni(): bool
+    {
+        $pieces = $this->relationLoaded('attachments')
+            ? $this->attachments->isNotEmpty()
+            : $this->attachments()->exists();
+
+        return $pieces || filled($this->lien) || filled($this->fichier_path);
+    }
+
+    /**
+     * Donné pour produit, mais sans rien à montrer.
+     */
+    public function pieceManquante(): bool
+    {
+        return $this->estDisponible() && ! $this->estFourni();
+    }
+
     public function echeance(): ?CarbonInterface
     {
         return $this->date_prevue;
