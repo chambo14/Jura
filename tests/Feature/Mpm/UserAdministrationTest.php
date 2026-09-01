@@ -2,15 +2,39 @@
 
 namespace Tests\Feature\Mpm;
 
+use App\Enums\MemberRole;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class UserAdministrationTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * Un poste qui annonce le métier en toutes lettres renseigne la fonction
+     * tant que celle-ci est vide : sans elle, le compte n'apparaît dans aucune
+     * liste de pilotage, et rien à l'écran ne l'explique.
+     */
+    public function test_le_poste_renseigne_la_fonction_encore_vide(): void
+    {
+        Livewire::actingAs(User::factory()->role(UserRole::Direction)->create())
+            ->test('pages::utilisateurs.onglets.comptes')
+            ->set('poste', 'Chef de projet adjoint')
+            ->assertSet('fonction', MemberRole::ChefProjet->value);
+    }
+
+    public function test_une_fonction_deja_choisie_nest_pas_ecrasee_par_le_poste(): void
+    {
+        Livewire::actingAs(User::factory()->role(UserRole::Direction)->create())
+            ->test('pages::utilisateurs.onglets.comptes')
+            ->set('fonction', MemberRole::ReferentTechnique->value)
+            ->set('poste', 'Chef de projet')
+            ->assertSet('fonction', MemberRole::ReferentTechnique->value);
+    }
 
     public function test_la_racine_renvoie_le_visiteur_vers_la_connexion(): void
     {

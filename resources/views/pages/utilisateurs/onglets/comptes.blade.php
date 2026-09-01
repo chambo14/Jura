@@ -13,7 +13,8 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
-new class extends Component {
+new class extends Component
+{
     use WithPagination;
 
     private const PAR_PAGE = 10;
@@ -121,6 +122,22 @@ new class extends Component {
         $this->resetValidation();
 
         Flux::modal('utilisateur')->show();
+    }
+
+    /**
+     * Le poste dit le métier en toutes lettres ; la fonction en est la forme
+     * structurée. Les laisser se remplir séparément fait diverger les deux,
+     * et un compte dont le poste annonce « Chef de projet » sans fonction
+     * n'apparaît dans aucune liste de pilotage — sans que rien ne le dise.
+     *
+     * La déduction ne s'applique qu'à une fonction encore vide : un choix
+     * explicite n'est jamais écrasé par l'intitulé.
+     */
+    public function updatedPoste(string $valeur): void
+    {
+        if ($this->fonction === '') {
+            $this->fonction = MemberRole::depuisUnPoste($valeur)?->value ?? '';
+        }
     }
 
     public function enregistrer(): void
@@ -394,7 +411,12 @@ new class extends Component {
             </flux:select>
 
             <div class="grid grid-cols-2 gap-3">
-                <flux:input wire:model="poste" label="Poste" placeholder="Chef de projet" />
+                <flux:input
+                    wire:model.blur="poste"
+                    label="Poste"
+                    placeholder="Chef de projet"
+                    description="Renseigne la fonction si elle est encore vide"
+                />
 
                 {{-- La fonction n'est pas le profil : celui-ci dit les droits
                      d'accès, celle-là le métier. C'est elle qui décide des rôles
