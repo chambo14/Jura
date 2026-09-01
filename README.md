@@ -207,16 +207,19 @@ Ce que chaque rubrique reprend :
 | Rubrique | Tâches reprises | Mention portée |
 |---|---|---|
 | Activités réalisées la semaine antérieure | terminées dans la semaine | `Terminé` |
-| | en cours, échéance dans la semaine — ou engagées sans échéance | `En cours` |
+| | **en cours**, quelle que soit leur échéance | `En cours` |
 | | encore ouvertes, échéance **antérieure** à la semaine | `En retard` |
 | Activités à réaliser cette semaine | non démarrées, attendues jusqu'à la fin de la semaine suivante | `À faire` |
 | | non démarrées et **sans échéance** | `À planifier` |
 | | bloquées | `Bloqué` |
 
 Une tâche en cours ou en retard a été dite dans la première rubrique : la seconde ne
-reprend que ce qui n'a pas commencé. Une tâche **sans échéance** n'entrait auparavant dans
-aucune des deux fenêtres et restait invisible du rapport semaine après semaine ; elle y
-figure désormais, engagée en activités réalisées, non démarrée en activités à réaliser.
+reprend que ce qui n'a pas commencé.
+
+Le travail engagé se raconte quelle que soit son échéance : le borner à une fenêtre de
+dates faisait disparaître du rapport une tâche en cours dont l'échéance était encore loin,
+ou pas encore posée. En revanche, une tâche terminée bien avant la semaine rapportée n'y
+figure pas — la citer chaque semaine noierait ce qui vient de se produire.
 
 Chaque ligne porte le **détail de la tâche** : son responsable et son avancement, recopiés
 au moment de la préparation. Un rapport publié doit rester ce qu'il disait le jour où il a

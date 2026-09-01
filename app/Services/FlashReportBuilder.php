@@ -142,23 +142,27 @@ class FlashReportBuilder
     private function ajouterRealisees(FlashReport $rapport, Project $project, CarbonInterface $du, CarbonInterface $au): void
     {
         $debut = $du->toDateString();
+        $fin = $au->toDateString();
 
         $taches = $project->tasks()
             ->with('assignee')
-            ->where(function (Builder $q) use ($du, $au, $debut) {
-                $q->realiseesEntre($du, $au)
+            ->where(function (Builder $q) use ($debut, $fin) {
+                // Ce que la semaine a produit.
+                $q->where(function (Builder $close) use ($debut, $fin) {
+                    $close->where('statut', ProgressStatus::Termine->value)
+                        ->whereDate('date_realisation', '>=', $debut)
+                        ->whereDate('date_realisation', '<=', $fin);
+                })
+                    // Tout ce qui est engagé se raconte, quelle que soit son
+                    // échéance : c'est le travail en cours du projet, et le
+                    // borner à une fenêtre le faisait disparaître du rapport.
+                    ->orWhere('statut', ProgressStatus::EnCours->value)
                     ->orWhere(function (Builder $retard) use ($debut) {
                         // Ouverte alors que son échéance était antérieure à la
-                        // semaine : elle aurait dû être faite, elle est en retard.
-                        // Une tâche dont l'échéance tombe dans la semaine n'est
-                        // pas en retard — la semaine était la sienne.
+                        // semaine : elle aurait dû être faite, elle est en
+                        // retard. Une tâche dont l'échéance tombe dans la
+                        // semaine ne l'est pas — la semaine était la sienne.
                         $retard->ouvertes()->whereDate('date_echeance', '<', $debut);
-                    })
-                    ->orWhere(function (Builder $encours) {
-                        // Engagée mais sans date : du travail en cours, qui
-                        // n'entre dans aucune fenêtre et disparaîtrait sinon.
-                        $encours->where('statut', ProgressStatus::EnCours->value)
-                            ->whereNull('date_echeance');
                     });
             })
             ->orderByRaw('COALESCE(date_realisation, date_echeance)')

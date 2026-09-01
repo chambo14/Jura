@@ -96,6 +96,47 @@ class TachesAuFlashReportTest extends TestCase
     }
 
     /**
+     * Une tâche engagée dont l'échéance est encore loin restait hors de toute
+     * fenêtre et n'apparaissait dans aucune rubrique : le rapport annonçait
+     * « Aucun élément » sur un projet qui travaillait.
+     */
+    public function test_une_tache_en_cours_figure_quelle_que_soit_son_echeance(): void
+    {
+        $this->project->tasks()->create([
+            'libelle' => 'Présentation — Homologation BRB',
+            'statut' => ProgressStatus::EnCours,
+            'date_echeance' => '2026-11-30',
+            'avancement_pct' => 50,
+        ]);
+
+        $ligne = $this->rapport()->items->firstWhere('libelle', 'Présentation — Homologation BRB');
+
+        $this->assertNotNull($ligne);
+        $this->assertSame(FlashItemType::Realisee, $ligne->type);
+        $this->assertSame('En cours', $ligne->statut_libelle);
+    }
+
+    /**
+     * Une tâche terminée bien avant la semaine rapportée n'a pas sa place dans
+     * son compte rendu : la citer chaque semaine noierait ce qui vient de se
+     * produire.
+     */
+    public function test_une_tache_terminee_avant_la_semaine_nest_pas_reprise(): void
+    {
+        $this->project->tasks()->create([
+            'libelle' => 'Disponibilité de la connectivité',
+            'statut' => ProgressStatus::Termine,
+            'date_echeance' => '2026-06-05',
+            'date_realisation' => '2026-06-05',
+            'avancement_pct' => 100,
+        ]);
+
+        $this->assertNull(
+            $this->rapport()->items->firstWhere('libelle', 'Disponibilité de la connectivité'),
+        );
+    }
+
+    /**
      * Le détail de la tâche accompagne la ligne : au comité, la charge et
      * l'avancement sont les deux premières questions posées.
      */

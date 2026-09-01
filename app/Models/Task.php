@@ -118,32 +118,6 @@ class Task extends Model implements PorteUneEcheance
     }
 
     /**
-     * Tâches clôturées pendant la fenêtre : alimentent "activités réalisées".
-     *
-     * @param  Builder<Task>  $query
-     * @return Builder<Task>
-     */
-    public function scopeRealiseesEntre(Builder $query, CarbonInterface $du, CarbonInterface $au): Builder
-    {
-        // Les colonnes date sont stockées avec une heure : la comparaison doit porter
-        // sur la partie date, sinon le dernier jour de la fenêtre est exclu.
-        $debut = $du->toDateString();
-        $fin = $au->toDateString();
-
-        return $query->where(function (Builder $q) use ($debut, $fin) {
-            $q->where(function (Builder $closes) use ($debut, $fin) {
-                $closes->whereDate('date_realisation', '>=', $debut)
-                    ->whereDate('date_realisation', '<=', $fin);
-            })->orWhere(function (Builder $encours) use ($debut, $fin) {
-                $encours->whereNull('date_realisation')
-                    ->where('statut', ProgressStatus::EnCours->value)
-                    ->whereDate('date_echeance', '>=', $debut)
-                    ->whereDate('date_echeance', '<=', $fin);
-            });
-        });
-    }
-
-    /**
      * Tâches ouvertes dont l'échéance tombe dans la fenêtre : alimentent "activités à réaliser".
      *
      * @param  Builder<Task>  $query
