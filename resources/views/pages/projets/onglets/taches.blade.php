@@ -12,7 +12,8 @@ use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
-new class extends Component {
+new class extends Component
+{
     public Project $project;
 
     public string $filtreStatut = '';
@@ -244,7 +245,10 @@ new class extends Component {
     {
         $this->authorize('contribute', $this->project);
 
-        $this->project->tasks()->whereKey($id)->delete();
+        // Suppression modèle par modèle : une suppression en masse passe par
+        // le constructeur de requête et ne déclenche aucun événement — la ligne
+        // disparaîtrait sans laisser de trace au journal.
+        $this->project->tasks()->whereKey($id)->get()->each->delete();
         $this->project->load('tasks');
         unset($this->taches, $this->synthese);
 

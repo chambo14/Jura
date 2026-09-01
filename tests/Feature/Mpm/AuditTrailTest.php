@@ -13,6 +13,7 @@ use App\Support\Audit\Audit;
 use Database\Seeders\MpmReferentialSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Date;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class AuditTrailTest extends TestCase
@@ -137,5 +138,57 @@ class AuditTrailTest extends TestCase
             ->get(route('projets.show', $this->projet).'?onglet=historique')
             ->assertOk()
             ->assertSee('Aucun changement consigné');
+    }
+
+    /**
+     * Une suppression ne laissait aucune trace : l'objet disparaissait, et avec
+     * lui la possibilité de savoir qu'il avait existé. C'est précisément ce
+     * qu'un journal doit retenir.
+     */
+    public function test_la_suppression_dune_tache_est_consignee(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create();
+        $project = Project::factory()->create(['chef_projet_id' => $chef->id]);
+
+        $tache = $project->tasks()->create([
+            'libelle' => 'Recetter le module de paiement',
+            'statut' => ProgressStatus::EnCours,
+        ]);
+
+        $this->actingAs($chef);
+        $tache->delete();
+
+        $ligne = AuditEntry::query()
+            ->where('project_id', $project->id)
+            ->where('attribut', 'suppression')
+            ->firstOrFail();
+
+        $this->assertSame('Recetter le module de paiement', $ligne->ancienne_valeur);
+        $this->assertSame($chef->id, $ligne->auteur_id);
+    }
+
+    /**
+     * Le bouton de l'onglet Tâches passe par le modèle, faute de quoi la
+     * suppression échapperait au journal.
+     */
+    public function test_la_suppression_depuis_lecran_est_consignee(): void
+    {
+        $chef = User::factory()->role(UserRole::ChefProjet)->create();
+        $project = Project::factory()->create(['chef_projet_id' => $chef->id]);
+
+        $tache = $project->tasks()->create([
+            'libelle' => 'Ouvrir le chantier de recette',
+            'statut' => ProgressStatus::NonDemarre,
+        ]);
+
+        Livewire::actingAs($chef)
+            ->test('pages::projets.onglets.taches', ['project' => $project])
+            ->call('supprimerTache', $tache->id);
+
+        $this->assertDatabaseHas('audit_entries', [
+            'project_id' => $project->id,
+            'attribut' => 'suppression',
+            'ancienne_valeur' => 'Ouvrir le chantier de recette',
+        ]);
     }
 }

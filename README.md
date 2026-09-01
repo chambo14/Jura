@@ -129,6 +129,20 @@ la santé du projet et le flash report. Il n'y a pas deux vérités.
 - Les cartes annulées sont hors tableau ; la case *Annulées* les fait réapparaître pour
   retrouver un travail abandonné.
 
+### Historique
+
+L'onglet *Historique* d'un projet tient le journal de ce qui a changé : statut, avancement,
+dates, responsables, et la **suppression** d'une tâche, d'un livrable, d'un jalon ou d'une
+carte — avec son auteur et son horodatage.
+
+Le suivi se branche sur les événements du modèle plutôt que sur les écrans : une valeur
+modifiée depuis une commande ou un import laisse la même trace. Une conséquence pratique :
+une suppression doit passer par le modèle et non par une requête en masse, sinon elle
+échappe au journal.
+
+La disparition d'un **projet** n'est pas consignée : son journal lui est rattaché et
+disparaît avec lui.
+
 ### Documents
 
 Des fichiers se déposent sur un **projet**, un **livrable** ou une **tâche** — cahier des

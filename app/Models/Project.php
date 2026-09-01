@@ -299,6 +299,16 @@ class Project extends Model
      *
      * @return array<int, string>
      */
+    /**
+     * L'historique d'un projet est rattaché au projet : le supprimer emporte
+     * son journal, et la ligne qui consignerait sa propre disparition n'aurait
+     * plus où se poser.
+     */
+    public function laSuppressionEstConsignee(): bool
+    {
+        return false;
+    }
+
     public static function attributsAudites(): array
     {
         return [

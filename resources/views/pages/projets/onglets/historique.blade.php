@@ -96,6 +96,7 @@ new class extends Component {
     public function intitule(string $attribut): string
     {
         return match ($attribut) {
+            'suppression' => 'Suppression',
             'statut' => 'Statut',
             'sante' => 'Santé',
             'categorie' => 'Rubrique du comité',

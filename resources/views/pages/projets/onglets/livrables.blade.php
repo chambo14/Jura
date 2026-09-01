@@ -327,7 +327,7 @@ new class extends Component {
     {
         $this->authorize('update', $this->project);
 
-        $this->project->deliverables()->whereKey($id)->delete();
+        $this->project->deliverables()->whereKey($id)->get()->each->delete();
         $this->project->load('deliverables');
         unset($this->groupes, $this->synthese, $this->nonAbouties);
 

@@ -218,7 +218,7 @@ new class extends Component {
     {
         $this->authorize('update', $this->project);
 
-        $this->project->milestones()->whereKey($id)->delete();
+        $this->project->milestones()->whereKey($id)->get()->each->delete();
         $this->project->load('milestones');
         unset($this->gantt);
 
