@@ -125,7 +125,7 @@ new #[Title('Analyse du portefeuille')] class extends Component {
     @else
         <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
             <table class="w-full min-w-[52rem] text-sm">
-                <thead class="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
+                <thead class="bg-mpm-navy-tint text-xs uppercase tracking-wide text-mpm-navy-dark dark:bg-zinc-800/60 dark:text-zinc-300">
                     <tr>
                         <th class="px-3 py-2 text-start font-medium">
                             {{ $axe === App\Services\PortfolioAnalyticsService::AXE_CHEF ? 'Chef de projet' : 'Client' }}

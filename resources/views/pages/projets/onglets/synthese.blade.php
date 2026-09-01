@@ -212,8 +212,10 @@ new class extends Component {
             @endif
         </section>
 
-        {{-- Compteurs opérationnels --}}
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {{-- Compteurs opérationnels. Quatre de front dans une colonne aux deux
+             tiers de la page rognaient les intitulés : on reste à deux jusqu'aux
+             très grands écrans. --}}
+        <div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
             @php
                 $livrablesEcheances = $this->compteurs()['livrables_echeances'];
                 $tachesEcheances = $this->compteurs()['taches_echeances'];

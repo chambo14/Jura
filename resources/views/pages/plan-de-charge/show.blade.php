@@ -184,7 +184,7 @@ new class extends Component {
             @else
                 <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
                     <table class="w-full text-sm">
-                        <thead class="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
+                        <thead class="bg-mpm-navy-tint text-xs uppercase tracking-wide text-mpm-navy-dark dark:bg-zinc-800/60 dark:text-zinc-300">
                             <tr>
                                 <th class="px-3 py-2 text-start font-medium">Projet</th>
                                 <th class="px-3 py-2 text-start font-medium">Rôle</th>

@@ -23,8 +23,8 @@
 <{{ $tag }}
     @if ($href) href="{{ $href }}" wire:navigate @endif
     {{ $attributes->class([
-        'flex items-start gap-4 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900',
-        'transition hover:border-zinc-300 dark:hover:border-zinc-600' => $href,
+        'flex items-start gap-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900',
+        'transition hover:border-zinc-300 hover:shadow-md dark:hover:border-zinc-600' => $href,
     ]) }}
 >
     @if ($icon)
@@ -34,7 +34,9 @@
     @endif
 
     <div class="min-w-0 flex-1">
-        <div class="truncate text-sm text-zinc-500 dark:text-zinc-400">{{ $label }}</div>
+        {{-- L'intitulé passe à la ligne plutôt que de se faire couper : une
+             tuile qui annonce « Livrables di… » ne dit plus rien. --}}
+        <div class="text-sm leading-snug text-zinc-500 dark:text-zinc-400">{{ $label }}</div>
         <div class="mt-0.5 text-2xl font-semibold tabular-nums text-zinc-900 dark:text-white">{{ $value }}</div>
         @if ($sub)
             <div class="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{{ $sub }}</div>

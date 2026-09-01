@@ -23,14 +23,14 @@
     --color-zinc-900: #171717;
     --color-zinc-950: #0a0a0a;
 
-    --color-accent: var(--color-neutral-800);
-    --color-accent-content: var(--color-neutral-800);
-    --color-accent-foreground: var(--color-white);
-
     /* Charte des dossiers de comité Mediasoft Lafayette, relevée dans les .pptx :
        bandeaux de section en bleu nuit, puces en bordeaux, statuts PowerPoint. */
     --color-mpm-navy: #1f4e79;
     --color-mpm-navy-dark: #163a5a;
+    /* Sur fond sombre, le bleu nuit ne se lit plus : l'accent s'éclaircit
+       plutôt que de changer de teinte. */
+    --color-mpm-navy-light: #7fb3e3;
+    --color-mpm-navy-tint: #eef4fa;
     --color-mpm-burgundy: #960000;
     --color-mpm-rule: #dddddd;
     --color-mpm-green: #00b050;
@@ -38,14 +38,22 @@
     --color-mpm-blue: #0070c0;
     --color-mpm-amber: #ffc000;
 
+    /* L'accent de l'application est le bleu nuit des dossiers de comité, et non
+       un noir neutre : boutons principaux, entrée active du menu, anneaux de
+       focus et liens en héritent d'un coup, partout, sans réglage écran par
+       écran. */
+    --color-accent: var(--color-mpm-navy);
+    --color-accent-content: var(--color-mpm-navy-dark);
+    --color-accent-foreground: var(--color-white);
+
     --font-slide: Arial, 'Helvetica Neue', Helvetica, sans-serif;
 }
 
 @layer theme {
     .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
+        --color-accent: var(--color-mpm-navy-light);
+        --color-accent-content: var(--color-mpm-navy-light);
+        --color-accent-foreground: #0b1c2c;
     }
 }
 
@@ -58,6 +66,20 @@
     ::file-selector-button {
         border-color: var(--color-gray-200, currentColor);
     }
+}
+
+/* L'entrée courante du menu. Flux la marque d'une pastille blanche bordée de
+   gris, qui ne se voyait plus depuis que la barre latérale est blanche. Elle
+   prend la teinte de l'accent : on sait où l'on est sans avoir à chercher.
+   Règle hors couche, pour passer devant les utilitaires de Flux. */
+[data-flux-sidebar] a[data-current] {
+    background-color: var(--color-mpm-navy-tint);
+    border-color: #d3e3f2;
+}
+
+.dark [data-flux-sidebar] a[data-current] {
+    background-color: color-mix(in oklab, var(--color-mpm-navy-light) 16%, transparent);
+    border-color: transparent;
 }
 
 [data-flux-field]:not(ui-radio, ui-checkbox) {

@@ -168,10 +168,17 @@ new #[Title('Projets')] class extends Component {
                 $restants = $projet->joursRestants();
             @endphp
 
+            {{-- Le filet de gauche porte la santé, comme sur le tableau de bord :
+                 une carte se lit d'abord à sa couleur, avant même son titre. --}}
             <a
                 href="{{ route('projets.show', $projet) }}"
                 wire:navigate
-                class="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 transition hover:border-zinc-300 hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600"
+                @class([
+                    'flex flex-col gap-3 rounded-xl border border-s-4 border-zinc-200 bg-white p-4 shadow-sm transition hover:border-zinc-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600',
+                    'border-s-red-500 hover:border-s-red-500 dark:border-s-red-500' => $sante->statut->color() === 'red',
+                    'border-s-amber-500 hover:border-s-amber-500 dark:border-s-amber-500' => $sante->statut->color() === 'amber',
+                    'border-s-green-500 hover:border-s-green-500 dark:border-s-green-500' => $sante->statut->color() === 'green',
+                ])
             >
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">

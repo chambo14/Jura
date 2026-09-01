@@ -308,9 +308,14 @@ new #[Title('Tableau de bord')] class extends Component {
     {{-- ──────────────────── Les trois chiffres qui comptent ──────────────────── --}}
     <div class="grid gap-4 lg:grid-cols-3">
         {{-- Santé : une barre empilée vaut mieux qu'un compteur --}}
-        <section class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+        <section class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <div class="flex items-baseline justify-between gap-2">
-                <h2 class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Santé du portefeuille</h2>
+                <h2 class="flex items-center gap-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                    <span class="flex size-6 items-center justify-center rounded-md bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-300">
+                        <flux:icon name="heart" variant="micro" />
+                    </span>
+                    Santé du portefeuille
+                </h2>
                 <span class="text-sm tabular-nums text-zinc-400">{{ $this->portefeuille()->count() }} projets actifs</span>
             </div>
 
@@ -349,8 +354,13 @@ new #[Title('Tableau de bord')] class extends Component {
         {{-- Avancement : le chiffre seul ne dit rien, il faut l'attendu — la barre
              en porte le repère, et la légende le rappelle en clair. L'écart n'est
              pas chiffré : c'est la soustraction de deux nombres déjà affichés. --}}
-        <section class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-            <h2 class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Avancement moyen</h2>
+        <section class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <h2 class="flex items-center gap-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                <span class="flex size-6 items-center justify-center rounded-md bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-300">
+                    <flux:icon name="chart-bar" variant="micro" />
+                </span>
+                Avancement moyen
+            </h2>
 
             <div class="mt-2">
                 <span class="text-3xl font-semibold tabular-nums text-zinc-900 dark:text-white">
@@ -373,8 +383,13 @@ new #[Title('Tableau de bord')] class extends Component {
         </section>
 
         {{-- Couverture des flash reports --}}
-        <section class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-            <h2 class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Flash reports de la semaine</h2>
+        <section class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <h2 class="flex items-center gap-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                <span class="flex size-6 items-center justify-center rounded-md bg-mpm-navy-tint text-mpm-navy dark:bg-zinc-800 dark:text-mpm-navy-light">
+                    <flux:icon name="bolt" variant="micro" />
+                </span>
+                Flash reports de la semaine
+            </h2>
 
             <div class="mt-2 flex items-baseline gap-2">
                 <span class="text-3xl font-semibold tabular-nums text-zinc-900 dark:text-white">
@@ -413,9 +428,9 @@ new #[Title('Tableau de bord')] class extends Component {
                 <flux:link :href="route('projets.index')" class="text-sm" wire:navigate>Voir tous les projets</flux:link>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
+            <div class="overflow-hidden rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-700">
                 <table class="w-full text-sm">
-                    <thead class="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
+                    <thead class="bg-mpm-navy-tint text-xs uppercase tracking-wide text-mpm-navy-dark dark:bg-zinc-800/60 dark:text-zinc-300">
                         <tr>
                             <th class="px-3 py-2 text-start font-medium">Projet</th>
                             <th class="px-3 py-2 text-start font-medium">Chef de projet</th>
@@ -425,7 +440,7 @@ new #[Title('Tableau de bord')] class extends Component {
                             <th class="px-3 py-2 text-start font-medium">Statut</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-zinc-100 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
+                    <tbody class="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
                         @forelse ($this->pagePortefeuille() as $ligne)
                             @php
                                 $projet = $ligne['projet'];
@@ -437,9 +452,19 @@ new #[Title('Tableau de bord')] class extends Component {
 
                             @php $delaiExpire = $restants !== null && $restants < 0; @endphp
 
+                            {{-- La santé du projet se lit au filet de gauche avant de se
+                                 lire au badge : l'œil trouve les lignes graves sans avoir
+                                 à parcourir la colonne Statut. --}}
                             <tr wire:key="projet-{{ $projet->id }}" class="align-top transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                                 {{-- Nom du projet --}}
-                                <td class="px-3 py-3">
+                                <td class="relative py-3 pe-3 ps-4">
+                                    <span @class([
+                                        'absolute inset-y-2 start-0 w-1 rounded-e-full',
+                                        'bg-red-500' => $sante->statut->color() === 'red',
+                                        'bg-amber-500' => $sante->statut->color() === 'amber',
+                                        'bg-green-500' => $sante->statut->color() === 'green',
+                                        'bg-zinc-300 dark:bg-zinc-600' => ! in_array($sante->statut->color(), ['red', 'amber', 'green'], true),
+                                    ])></span>
                                     <a href="{{ route('projets.show', $projet) }}" wire:navigate class="font-medium text-zinc-900 hover:underline dark:text-white">
                                         {{ $projet->nom }}
                                     </a>
@@ -526,7 +551,10 @@ new #[Title('Tableau de bord')] class extends Component {
                                                 Flash report {{ Str::lower($rapport->statut->label()) }}
                                             </flux:badge>
                                         @else
-                                            <flux:badge color="red" size="sm" :href="route('projets.show', $projet).'?onglet=rapports'">
+                                            {{-- Un rapport qui reste à écrire n'est pas un projet en
+                                                 danger : la couleur le dit comme le fait le bloc
+                                                 « flash reports à rédiger » plus bas. --}}
+                                            <flux:badge color="amber" size="sm" :href="route('projets.show', $projet).'?onglet=rapports'">
                                                 Flash report à rédiger
                                             </flux:badge>
                                         @endif

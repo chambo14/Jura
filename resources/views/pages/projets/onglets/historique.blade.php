@@ -180,7 +180,7 @@ new class extends Component {
 
             <div wire:loading.class="opacity-40" class="overflow-x-auto rounded-xl border border-zinc-200 transition-opacity dark:border-zinc-700">
                 <table class="w-full text-sm">
-                    <thead class="bg-zinc-50 text-start text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+                    <thead class="bg-mpm-navy-tint text-start text-xs uppercase tracking-wide text-mpm-navy-dark dark:bg-zinc-900 dark:text-zinc-300">
                         <tr>
                             <th class="px-3 py-2 text-start font-medium">Quand</th>
                             <th class="px-3 py-2 text-start font-medium">Objet</th>
