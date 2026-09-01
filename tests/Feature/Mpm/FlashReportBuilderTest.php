@@ -199,4 +199,45 @@ class FlashReportBuilderTest extends TestCase
             $builder->rafraichir($rapport->fresh())->avancement_pct,
         );
     }
+
+    /**
+     * Une tâche ouverte sans échéance n'entrait dans aucune fenêtre : elle
+     * restait invisible du rapport, semaine après semaine, alors qu'elle est
+     * du travail annoncé et non encore fait.
+     */
+    public function test_une_tache_ouverte_sans_echeance_entre_dans_les_activites_a_realiser(): void
+    {
+        $project = $this->projetAvecTaches();
+
+        $project->tasks()->create([
+            'libelle' => 'Cadrer le lot 2 avec le client',
+            'statut' => ProgressStatus::EnCours,
+        ]);
+
+        $rapport = app(FlashReportBuilder::class)->preparer($project, Date::parse('2026-08-10'));
+
+        $libelles = $rapport->items
+            ->where('type', FlashItemType::ARealiser)
+            ->pluck('libelle')
+            ->all();
+
+        $this->assertContains('Cadrer le lot 2 avec le client', $libelles);
+    }
+
+    public function test_une_tache_close_sans_echeance_nencombre_pas_le_rapport(): void
+    {
+        $project = $this->projetAvecTaches();
+
+        $project->tasks()->create([
+            'libelle' => 'Archiver les anciens comptes rendus',
+            'statut' => ProgressStatus::Termine,
+        ]);
+
+        $rapport = app(FlashReportBuilder::class)->preparer($project, Date::parse('2026-08-10'));
+
+        $this->assertNotContains(
+            'Archiver les anciens comptes rendus',
+            $rapport->items->pluck('libelle')->all(),
+        );
+    }
 }

@@ -157,6 +157,21 @@ class Task extends Model implements PorteUneEcheance
     }
 
     /**
+     * Tâches qui doivent encore quelque chose au projet : ni terminées, ni
+     * annulées.
+     *
+     * @param  Builder<Task>  $query
+     * @return Builder<Task>
+     */
+    public function scopeOuvertes(Builder $query): Builder
+    {
+        return $query->whereNotIn('statut', [
+            ProgressStatus::Termine->value,
+            ProgressStatus::Annule->value,
+        ]);
+    }
+
+    /**
      * Attributs dont chaque variation est consignée au journal d'audit.
      *
      * @return array<int, string>

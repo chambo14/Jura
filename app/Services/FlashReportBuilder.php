@@ -134,7 +134,20 @@ class FlashReportBuilder
             ->orderBy('date_echeance')
             ->get();
 
-        foreach ($taches->values() as $index => $tache) {
+        // Une tâche ouverte sans échéance n'entrait dans aucune fenêtre : elle
+        // restait invisible du rapport, semaine après semaine, alors qu'elle
+        // est précisément du travail annoncé et non encore fait. Elle passe
+        // après les tâches datées, l'ordre du jour restant chronologique.
+        $sansEcheance = $project->tasks()
+            ->ouvertes()
+            ->whereNull('date_echeance')
+            ->whereNotIn('id', $dejaCitees)
+            ->whereNotIn('id', $taches->pluck('id')->all())
+            ->orderBy('ordre')
+            ->orderBy('libelle')
+            ->get();
+
+        foreach ($taches->concat($sansEcheance)->values() as $index => $tache) {
             $rapport->items()->create([
                 'task_id' => $tache->id,
                 'type' => FlashItemType::ARealiser,

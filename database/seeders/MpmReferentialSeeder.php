@@ -92,9 +92,9 @@ class MpmReferentialSeeder extends Seeder
         // [phase, nom, responsable, obligatoire, types de projet concernés (null = tous)]
         $definitions = [
             ['OPPORTUNITE', "Formulaire d'expression de besoin (EDB)", 'Demandeur', true, null],
-            ['OPPORTUNITE', "Note d'opportunité", 'Direction MEDIALOGIC', true, null],
-            ['OPPORTUNITE', 'Business Case', 'Direction MEDIALOGIC', false, null],
-            ['OPPORTUNITE', 'Charte de projet', 'Direction MEDIALOGIC', true, null],
+            ['OPPORTUNITE', "Note d'opportunité", 'Direction MEDIASOFT LAFAYETTE', true, null],
+            ['OPPORTUNITE', 'Business Case', 'Direction MEDIASOFT LAFAYETTE', false, null],
+            ['OPPORTUNITE', 'Charte de projet', 'Direction MEDIASOFT LAFAYETTE', true, null],
 
             ['CADRAGE', 'Dossier de cadrage', 'Projet', true, null],
             ['CADRAGE', 'Cahier des charges', 'Projet', true, null],

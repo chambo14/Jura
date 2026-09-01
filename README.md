@@ -188,6 +188,16 @@ détectées les points d'attention. Le chef de projet ajuste, ajoute ses propres
 d'attention et sa synthèse, puis publie — la publication **fige les chiffres**, pour que
 le rapport reste fidèle a posteriori.
 
+Une tâche ouverte **sans échéance** n'entrait dans aucune des deux fenêtres et restait
+invisible du rapport semaine après semaine, alors qu'elle est du travail annoncé et non
+encore fait : elle figure désormais en activités à réaliser, après les tâches datées.
+
+L'onglet *Flash reports* d'un projet ouvre sur le **tableau de ses tâches** — libellé,
+responsable, échéance, avancement et statut — tel qu'il est à l'instant où on le regarde.
+Le rapport, lui, est figé au moment où on le prépare : une tâche créée ensuite ne s'y
+ajoute pas, et le tableau le signale (`Non reprise dans le dernier rapport`) plutôt que de
+laisser croire qu'elle a été rapportée.
+
 Chaque diapositive reprend aussi l'**équipe projet** complète : chef de projet, back-up,
 sponsor, référent technique, testeurs et tout autre intervenant affecté, avec son taux
 d'allocation.
