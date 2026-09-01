@@ -86,6 +86,15 @@ class FlashReportBuilder
 
     /**
      * Réaligne un brouillon existant sur l'état courant du projet.
+     *
+     * Le pré-remplissage n'a lieu qu'à la création : une tâche ajoutée ensuite
+     * n'entrait dans aucune rubrique, et le rapport restait vide alors que le
+     * projet, lui, avançait. Le réalignement reprend donc aussi les activités.
+     *
+     * Il ne touche qu'aux lignes issues des tâches. Les points d'attention et
+     * tout ce que le chef de projet a écrit de sa main sont conservés : c'est
+     * son rapport, le réalignement ne fait que rattraper ce que le projet a
+     * changé depuis.
      */
     public function rafraichir(FlashReport $rapport): FlashReport
     {
@@ -93,9 +102,25 @@ class FlashReportBuilder
             return $rapport;
         }
 
-        $rapport->update($this->instantane($rapport->project));
+        return DB::transaction(function () use ($rapport) {
+            $rapport->update($this->instantane($rapport->project));
 
-        return $rapport->refresh();
+            $rapport->items()->whereNotNull('task_id')->delete();
+            $rapport->load('items');
+
+            $lundi = $rapport->semaine_du->copy();
+            $vendredi = $rapport->semaine_au->copy();
+
+            $this->ajouterRealisees($rapport, $rapport->project, $lundi, $vendredi);
+            $this->ajouterARealiser(
+                $rapport,
+                $rapport->project,
+                $lundi->copy()->addWeek(),
+                $vendredi->copy()->addWeek(),
+            );
+
+            return $rapport->refresh()->load('items');
+        });
     }
 
     private function remplirItems(FlashReport $rapport, Project $project, CarbonInterface $lundi, CarbonInterface $vendredi): void

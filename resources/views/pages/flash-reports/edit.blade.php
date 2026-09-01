@@ -10,10 +10,13 @@ use App\Services\FlashReportBuilder;
 use App\Support\Audit\Audit;
 use Flux\Flux;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Date;
+use Illuminate\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
-new class extends Component {
+new class extends Component
+{
     public FlashReport $flashReport;
 
     public string $synthese = '';
@@ -190,7 +193,7 @@ new class extends Component {
             $this->flashReport,
             FlashItemType::from($this->nouvelleRubrique),
             $this->nouveauLibelle,
-            $this->nouvelleDate ? \Illuminate\Support\Facades\Date::parse($this->nouvelleDate) : null,
+            $this->nouvelleDate ? Date::parse($this->nouvelleDate) : null,
         );
 
         $this->reset('nouveauLibelle', 'nouvelleDate');
@@ -210,7 +213,9 @@ new class extends Component {
     }
 
     /**
-     * Recharge les chiffres du projet dans le rapport sans toucher aux rubriques.
+     * Reprend l'état du projet : ses chiffres, et les tâches qui alimentent les
+     * deux rubriques d'activités. Ce que le chef de projet a écrit de sa main
+     * — points d'attention, lignes ajoutées, synthèse — n'est pas touché.
      */
     public function rafraichir(): void
     {
@@ -220,7 +225,10 @@ new class extends Component {
 
         $this->flashReport->refresh()->load(['items', 'project.steps.workflowStep']);
 
-        Flux::toast(variant: 'success', text: 'Chiffres réalignés sur le projet.');
+        $this->chargerLignes();
+        unset($this->indexParRubrique);
+
+        Flux::toast(variant: 'success', text: 'Rapport réaligné sur le projet et ses tâches.');
     }
 
     public function publier(): void
@@ -252,7 +260,7 @@ new class extends Component {
         Flux::toast(variant: 'success', text: 'Flash report repassé en brouillon.');
     }
 
-    public function rendering(\Illuminate\View\View $view): void
+    public function rendering(View $view): void
     {
         $view->title('Flash report — '.$this->flashReport->project->nom);
     }
@@ -282,7 +290,13 @@ new class extends Component {
             </flux:button>
 
             @if ($this->modifiable())
-                <flux:button wire:click="rafraichir" icon="arrow-path" variant="ghost" size="sm">Réaligner</flux:button>
+                <flux:button
+                    wire:click="rafraichir"
+                    icon="arrow-path"
+                    variant="ghost"
+                    size="sm"
+                    title="Reprendre les chiffres du projet et ses tâches, sans toucher à ce que vous avez écrit"
+                >Réaligner</flux:button>
                 <flux:button wire:click="enregistrer" icon="check" variant="filled" size="sm">Enregistrer</flux:button>
                 <flux:button wire:click="publier" wire:confirm="Publier ce flash report ? Les chiffres seront figés." icon="paper-airplane" variant="primary" size="sm">
                     Publier

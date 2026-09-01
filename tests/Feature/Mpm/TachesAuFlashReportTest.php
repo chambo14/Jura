@@ -172,6 +172,74 @@ class TachesAuFlashReportTest extends TestCase
     }
 
     /**
+     * Le pré-remplissage n'a lieu qu'à la création : une tâche ajoutée ensuite
+     * laissait le rapport vide alors que le projet avançait. Le réalignement
+     * la reprend.
+     */
+    public function test_le_realignement_reprend_les_taches_creees_depuis(): void
+    {
+        $rapport = $this->rapport();
+
+        $this->assertCount(0, $rapport->items->whereNotNull('task_id'));
+
+        $this->project->tasks()->create([
+            'libelle' => 'Ouvrir le chantier de recette',
+            'statut' => ProgressStatus::NonDemarre,
+            'date_echeance' => '2026-08-19',
+        ]);
+
+        $rafraichi = app(FlashReportBuilder::class)->rafraichir($rapport);
+
+        $this->assertSame(
+            'À faire',
+            $rafraichi->items->firstWhere('libelle', 'Ouvrir le chantier de recette')?->statut_libelle,
+        );
+    }
+
+    /**
+     * Le réalignement rattrape ce que le projet a changé ; il n'efface pas ce
+     * que le chef de projet a écrit.
+     */
+    public function test_le_realignement_ne_touche_pas_aux_lignes_ecrites_a_la_main(): void
+    {
+        $rapport = $this->rapport();
+
+        $rapport->items()->create([
+            'type' => FlashItemType::Attention,
+            'libelle' => 'Le client demande une démonstration le 3 septembre',
+            'ordre' => 99,
+        ]);
+
+        app(FlashReportBuilder::class)->rafraichir($rapport);
+
+        $this->assertNotNull(
+            $rapport->refresh()->items->firstWhere('libelle', 'Le client demande une démonstration le 3 septembre'),
+        );
+    }
+
+    /**
+     * Un rapport publié est un engagement rendu : le réalignement n'y touche
+     * pas.
+     */
+    public function test_un_rapport_publie_ne_se_realigne_pas(): void
+    {
+        $rapport = $this->rapport();
+        app(FlashReportBuilder::class)->publier($rapport);
+
+        $this->project->tasks()->create([
+            'libelle' => 'Tâche postérieure à la publication',
+            'statut' => ProgressStatus::NonDemarre,
+            'date_echeance' => '2026-08-19',
+        ]);
+
+        app(FlashReportBuilder::class)->rafraichir($rapport);
+
+        $this->assertNull(
+            $rapport->refresh()->items->firstWhere('libelle', 'Tâche postérieure à la publication'),
+        );
+    }
+
+    /**
      * La maison s'appelle MEDIASOFT LAFAYETTE ; le référentiel des livrables
      * désignait encore MEDIALOGIC comme direction responsable.
      */

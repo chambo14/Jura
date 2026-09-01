@@ -208,6 +208,12 @@ Chaque ligne porte le **détail de la tâche** : son responsable et son avanceme
 au moment de la préparation. Un rapport publié doit rester ce qu'il disait le jour où il a
 été rendu, même si la tâche a bougé depuis.
 
+Le pré-remplissage n'a lieu qu'à la création. Une tâche ajoutée ensuite n'entre dans aucune
+rubrique : le bouton **Réaligner**, sur l'écran de rédaction, reprend les chiffres du projet
+et ses tâches. Il ne touche qu'aux lignes issues des tâches — les points d'attention, les
+lignes ajoutées à la main et la synthèse sont conservés. Un rapport publié ne se réaligne
+pas.
+
 Chaque diapositive reprend aussi l'**équipe projet** complète : chef de projet, back-up,
 sponsor, référent technique, testeurs et tout autre intervenant affecté, avec son taux
 d'allocation.
