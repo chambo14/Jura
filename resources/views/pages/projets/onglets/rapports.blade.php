@@ -1,9 +1,7 @@
 <?php
 
-use App\Enums\ProgressStatus;
 use App\Models\FlashReport;
 use App\Models\Project;
-use App\Models\Task;
 use App\Services\FlashReportBuilder;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -36,50 +34,6 @@ new class extends Component {
     public function rapports(): Collection
     {
         return $this->project->flashReports()->with('auteur')->get();
-    }
-
-    /**
-     * Les tâches du projet, dans l'ordre où on veut les voir : ce qui reste à
-     * faire d'abord, ce qui est fait ensuite.
-     *
-     * @return Collection<int, Task>
-     */
-    #[Computed]
-    public function taches(): Collection
-    {
-        $rang = [
-            ProgressStatus::Bloque->value => 1,
-            ProgressStatus::EnCours->value => 2,
-            ProgressStatus::NonDemarre->value => 3,
-            ProgressStatus::Termine->value => 4,
-            ProgressStatus::Annule->value => 5,
-        ];
-
-        return $this->project->tasks()
-            ->with('assignee')
-            ->get()
-            ->sortBy([
-                fn (Task $a, Task $b) => ($rang[$a->statut->value] ?? 9) <=> ($rang[$b->statut->value] ?? 9),
-                fn (Task $a, Task $b) => ($a->date_echeance?->timestamp ?? PHP_INT_MAX) <=> ($b->date_echeance?->timestamp ?? PHP_INT_MAX),
-                fn (Task $a, Task $b) => $a->libelle <=> $b->libelle,
-            ])
-            ->values();
-    }
-
-    /**
-     * Identifiants des tâches déjà reprises par le dernier rapport : une tâche
-     * créée après sa rédaction n'y figure pas, et il vaut mieux le dire que de
-     * laisser croire qu'elle a été rapportée.
-     *
-     * @return array<int, int>
-     */
-    #[Computed]
-    public function tachesReprises(): array
-    {
-        return $this->dernier()?->items
-            ->whereNotNull('task_id')
-            ->pluck('task_id')
-            ->all() ?? [];
     }
 
     #[Computed]
@@ -141,79 +95,13 @@ new class extends Component {
 
     @if ($this->peutRediger())
         <flux:callout icon="information-circle" color="blue">
-            Le rapport est pré-rempli automatiquement : activités réalisées sur la semaine choisie,
-            activités à réaliser la semaine suivante, et points d'attention issus des dérives détectées.
+            Le rapport est pré-rempli à partir des tâches du projet, chaque ligne portant son
+            responsable et son avancement. Les activités réalisées reprennent les tâches terminées,
+            en cours ou en retard sur la semaine choisie ; les activités à réaliser, les tâches non
+            démarrées attendues la semaine suivante et celles qui restent à planifier. Les points
+            d'attention viennent des dérives détectées.
         </flux:callout>
     @endif
-
-    {{-- Les tâches du projet, telles qu'elles alimentent le rapport.
-
-         Le rapport est figé au moment où on le prépare : il liste les tâches
-         closes dans la semaine et celles attendues la suivante. Une tâche créée
-         après ne s'y ajoute pas d'elle-même — d'où ce tableau, qui montre l'état
-         réel du projet à l'instant où on le regarde, et signale ce que le
-         dernier rapport n'a pas repris. --}}
-    <div>
-        <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-                <flux:heading size="lg">Tâches du projet</flux:heading>
-                <flux:subheading>{{ $this->taches()->count() }} tâche(s) · avancement et statut à l'instant</flux:subheading>
-            </div>
-            <flux:link :href="route('projets.show', $project).'?onglet=taches'" class="text-sm" wire:navigate>
-                Gérer les tâches
-            </flux:link>
-        </div>
-
-        <div class="overflow-hidden rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-700">
-            <table class="w-full text-sm">
-                <thead class="bg-mpm-navy-tint text-xs uppercase tracking-wide text-mpm-navy-dark dark:bg-zinc-800/60 dark:text-zinc-300">
-                    <tr>
-                        <th class="px-4 py-2 text-start font-medium">Tâche</th>
-                        <th class="px-4 py-2 text-start font-medium">Responsable</th>
-                        <th class="px-4 py-2 text-start font-medium">Échéance</th>
-                        <th class="px-4 py-2 text-start font-medium">Avancement</th>
-                        <th class="px-4 py-2 text-start font-medium">Statut</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-zinc-200 bg-white dark:divide-zinc-800 dark:bg-zinc-900">
-                    @forelse ($this->taches() as $tache)
-                        <tr wire:key="tache-{{ $tache->id }}" class="align-top transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                            <td class="px-4 py-3">
-                                <div class="font-medium text-zinc-900 dark:text-white">{{ $tache->libelle }}</div>
-                                @if (! in_array($tache->id, $this->tachesReprises(), true) && $this->dernier())
-                                    <div class="mt-0.5 text-xs text-zinc-400">Non reprise dans le dernier rapport</div>
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 text-xs text-zinc-600 dark:text-zinc-300">
-                                {{ $tache->assignee?->name ?? 'Non assignée' }}
-                            </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-xs tabular-nums">
-                                @if ($tache->date_echeance)
-                                    <span @class(['text-red-600 dark:text-red-400' => $tache->enRetard()])>
-                                        {{ $tache->date_echeance->format('d/m/Y') }}
-                                    </span>
-                                @else
-                                    <span class="text-zinc-400">Sans échéance</span>
-                                @endif
-                            </td>
-                            <td class="w-40 px-4 py-3">
-                                <x-progress-bar :value="$tache->avancement_pct" color="green" />
-                            </td>
-                            <td class="px-4 py-3">
-                                <flux:badge :color="$tache->statut->color()" size="sm">{{ $tache->statut->label() }}</flux:badge>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="px-4 py-10 text-center text-zinc-500 dark:text-zinc-400">
-                                Aucune tâche sur ce projet.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
 
     {{-- Historique --}}
     <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">

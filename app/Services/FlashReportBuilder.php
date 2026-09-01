@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Support\Alert;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -104,10 +105,37 @@ class FlashReportBuilder
         $this->ajouterPointsAttention($rapport, $project);
     }
 
+    /**
+     * « Activités réalisées la semaine antérieure » : ce que la semaine devait
+     * produire, et ce qu'elle en a fait.
+     *
+     * Trois cas y ont leur place — terminé, en cours, en retard. Le troisième
+     * est le plus important : une tâche qui devait être faite et ne l'est pas
+     * appartient au compte rendu de la semaine autant que celles qui ont
+     * abouti. La taire donnerait un rapport où seul ce qui a marché figure.
+     */
     private function ajouterRealisees(FlashReport $rapport, Project $project, CarbonInterface $du, CarbonInterface $au): void
     {
+        $debut = $du->toDateString();
+
         $taches = $project->tasks()
-            ->realiseesEntre($du, $au)
+            ->with('assignee')
+            ->where(function (Builder $q) use ($du, $au, $debut) {
+                $q->realiseesEntre($du, $au)
+                    ->orWhere(function (Builder $retard) use ($debut) {
+                        // Ouverte alors que son échéance était antérieure à la
+                        // semaine : elle aurait dû être faite, elle est en retard.
+                        // Une tâche dont l'échéance tombe dans la semaine n'est
+                        // pas en retard — la semaine était la sienne.
+                        $retard->ouvertes()->whereDate('date_echeance', '<', $debut);
+                    })
+                    ->orWhere(function (Builder $encours) {
+                        // Engagée mais sans date : du travail en cours, qui
+                        // n'entre dans aucune fenêtre et disparaîtrait sinon.
+                        $encours->where('statut', ProgressStatus::EnCours->value)
+                            ->whereNull('date_echeance');
+                    });
+            })
             ->orderByRaw('COALESCE(date_realisation, date_echeance)')
             ->get();
 
@@ -116,47 +144,99 @@ class FlashReportBuilder
                 'task_id' => $tache->id,
                 'type' => FlashItemType::Realisee,
                 'libelle' => $tache->libelle,
+                'responsable' => $tache->assignee?->name,
+                'avancement_pct' => $tache->avancement_pct,
                 'date_ref' => $tache->date_realisation ?? $tache->date_echeance,
-                'statut_libelle' => $tache->statut === ProgressStatus::Termine ? 'Terminé' : 'En cours',
+                'statut_libelle' => $this->statutRealisee($tache, $du),
                 'ordre' => $index + 1,
             ]);
         }
     }
 
+    /**
+     * Le retard se juge par rapport à la semaine rapportée, et non au jour où
+     * l'on rédige : un rapport préparé pour une semaine passée doit dire ce qui
+     * était vrai alors.
+     *
+     * Une tâche encore ouverte dont l'échéance tombait **avant** la semaine
+     * est en retard : elle aurait dû être faite. Une tâche dont l'échéance
+     * tombe dans la semaine reste en cours — la semaine était la sienne.
+     */
+    private function statutRealisee(Task $tache, CarbonInterface $du): string
+    {
+        if ($tache->statut === ProgressStatus::Termine) {
+            return 'Terminé';
+        }
+
+        $enRetard = $tache->date_echeance !== null
+            && $tache->date_echeance->lessThan($du)
+            && ! $tache->statut->isClosed();
+
+        return $enRetard ? 'En retard' : 'En cours';
+    }
+
+    /**
+     * « Activités à réaliser cette semaine » : le travail annoncé, pas celui
+     * qui est déjà engagé.
+     *
+     * Une tâche en cours ou en retard a été dite dans la rubrique précédente ;
+     * ne restent ici que celles qui n'ont pas commencé. Deux cas : elle a une
+     * échéance, c'est « À faire » ; elle n'en a pas, c'est « À planifier » —
+     * du travail reconnu dont la date reste à poser. Sans ce second cas, une
+     * tâche sans échéance n'entrait dans aucune fenêtre et restait invisible
+     * du rapport, semaine après semaine.
+     */
     private function ajouterARealiser(FlashReport $rapport, Project $project, CarbonInterface $du, CarbonInterface $au): void
     {
         // Une tâche déjà citée en « activités réalisées » n'est pas reprise ici.
         $dejaCitees = $rapport->items()->whereNotNull('task_id')->pluck('task_id')->all();
+        $fin = $au->toDateString();
 
         $taches = $project->tasks()
-            ->attenduesEntre($du, $au)
+            ->with('assignee')
+            ->whereIn('statut', [
+                ProgressStatus::NonDemarre->value,
+                ProgressStatus::Bloque->value,
+            ])
             ->whereNotIn('id', $dejaCitees)
+            ->where(function (Builder $q) use ($fin) {
+                $q->whereNull('date_echeance')
+                    ->orWhereDate('date_echeance', '<=', $fin);
+            })
+            // Les tâches datées d'abord, dans l'ordre du calendrier ; celles
+            // qui restent à planifier ferment la liste.
+            ->orderByRaw('CASE WHEN date_echeance IS NULL THEN 1 ELSE 0 END')
             ->orderBy('date_echeance')
-            ->get();
-
-        // Une tâche ouverte sans échéance n'entrait dans aucune fenêtre : elle
-        // restait invisible du rapport, semaine après semaine, alors qu'elle
-        // est précisément du travail annoncé et non encore fait. Elle passe
-        // après les tâches datées, l'ordre du jour restant chronologique.
-        $sansEcheance = $project->tasks()
-            ->ouvertes()
-            ->whereNull('date_echeance')
-            ->whereNotIn('id', $dejaCitees)
-            ->whereNotIn('id', $taches->pluck('id')->all())
             ->orderBy('ordre')
             ->orderBy('libelle')
             ->get();
 
-        foreach ($taches->concat($sansEcheance)->values() as $index => $tache) {
+        foreach ($taches->values() as $index => $tache) {
             $rapport->items()->create([
                 'task_id' => $tache->id,
                 'type' => FlashItemType::ARealiser,
                 'libelle' => $tache->libelle,
+                'responsable' => $tache->assignee?->name,
+                'avancement_pct' => $tache->avancement_pct,
                 'date_ref' => $tache->date_echeance,
-                'statut_libelle' => $tache->enRetard() ? 'En retard' : null,
+                'statut_libelle' => $this->statutARealiser($tache),
                 'ordre' => $index + 1,
             ]);
         }
+    }
+
+    /**
+     * Une tâche sans échéance n'est pas « à faire cette semaine » : elle est
+     * reconnue mais pas encore posée dans le calendrier. Le dire évite de la
+     * compter comme un engagement de la semaine.
+     */
+    private function statutARealiser(Task $tache): string
+    {
+        return match (true) {
+            $tache->date_echeance === null => 'À planifier',
+            $tache->statut === ProgressStatus::Bloque => 'Bloqué',
+            default => 'À faire',
+        };
     }
 
     private function ajouterPointsAttention(FlashReport $rapport, Project $project): void

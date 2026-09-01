@@ -14,13 +14,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $task_id
  * @property FlashItemType $type
  * @property string $libelle
+ * @property string|null $responsable
+ * @property float|null $avancement_pct
  * @property CarbonInterface|null $date_ref
  * @property string|null $statut_libelle
  * @property int $ordre
  * @property-read FlashReport $flashReport
  * @property-read Task|null $task
  */
-#[Fillable(['flash_report_id', 'task_id', 'type', 'libelle', 'date_ref', 'statut_libelle', 'ordre'])]
+#[Fillable([
+    'flash_report_id', 'task_id', 'type', 'libelle', 'responsable', 'avancement_pct',
+    'date_ref', 'statut_libelle', 'ordre',
+])]
 class FlashReportItem extends Model
 {
     /** @return array<string, string> */
@@ -29,6 +34,7 @@ class FlashReportItem extends Model
         return [
             'type' => FlashItemType::class,
             'date_ref' => 'date',
+            'avancement_pct' => 'float',
         ];
     }
 

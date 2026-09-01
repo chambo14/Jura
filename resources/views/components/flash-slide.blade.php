@@ -186,9 +186,21 @@
                                     <span @class([
                                         'font-bold',
                                         'text-mpm-green' => $ligne->statut_libelle === 'Terminé',
-                                        'text-mpm-red' => $ligne->statut_libelle === 'En retard',
-                                        'text-mpm-blue' => ! in_array($ligne->statut_libelle, ['Terminé', 'En retard'], true),
+                                        'text-mpm-red' => in_array($ligne->statut_libelle, ['En retard', 'Bloqué'], true),
+                                        'text-mpm-blue' => ! in_array($ligne->statut_libelle, ['Terminé', 'En retard', 'Bloqué'], true),
                                     ])>{{ $ligne->statut_libelle }}</span>
+                                @endif
+
+                                {{-- Le détail de la tâche : qui en a la charge, et où
+                                     elle en est. Les deux premières questions posées
+                                     au comité devant une ligne d'activité. --}}
+                                @if ($ligne->responsable || $ligne->avancement_pct !== null)
+                                    <span class="text-neutral-500">
+                                        —
+                                        @if ($ligne->responsable){{ $ligne->responsable }}@endif
+                                        @if ($ligne->responsable && $ligne->avancement_pct !== null) · @endif
+                                        @if ($ligne->avancement_pct !== null){{ number_format($ligne->avancement_pct, 0, ',', ' ') }} %@endif
+                                    </span>
                                 @endif
                             </li>
                         @endforeach

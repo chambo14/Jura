@@ -202,10 +202,10 @@ class FlashReportBuilderTest extends TestCase
 
     /**
      * Une tâche ouverte sans échéance n'entrait dans aucune fenêtre : elle
-     * restait invisible du rapport, semaine après semaine, alors qu'elle est
-     * du travail annoncé et non encore fait.
+     * restait invisible du rapport, semaine après semaine. Selon qu'elle est
+     * engagée ou non, elle relève de l'une ou l'autre rubrique.
      */
-    public function test_une_tache_ouverte_sans_echeance_entre_dans_les_activites_a_realiser(): void
+    public function test_une_tache_engagee_sans_echeance_figure_dans_les_activites_realisees(): void
     {
         $project = $this->projetAvecTaches();
 
@@ -216,12 +216,29 @@ class FlashReportBuilderTest extends TestCase
 
         $rapport = app(FlashReportBuilder::class)->preparer($project, Date::parse('2026-08-10'));
 
-        $libelles = $rapport->items
-            ->where('type', FlashItemType::ARealiser)
-            ->pluck('libelle')
-            ->all();
+        $ligne = $rapport->items->firstWhere('libelle', 'Cadrer le lot 2 avec le client');
 
-        $this->assertContains('Cadrer le lot 2 avec le client', $libelles);
+        $this->assertNotNull($ligne);
+        $this->assertSame(FlashItemType::Realisee, $ligne->type);
+        $this->assertSame('En cours', $ligne->statut_libelle);
+    }
+
+    public function test_une_tache_non_demarree_sans_echeance_reste_a_planifier(): void
+    {
+        $project = $this->projetAvecTaches();
+
+        $project->tasks()->create([
+            'libelle' => 'Consolider le besoin métier',
+            'statut' => ProgressStatus::NonDemarre,
+        ]);
+
+        $rapport = app(FlashReportBuilder::class)->preparer($project, Date::parse('2026-08-10'));
+
+        $ligne = $rapport->items->firstWhere('libelle', 'Consolider le besoin métier');
+
+        $this->assertNotNull($ligne);
+        $this->assertSame(FlashItemType::ARealiser, $ligne->type);
+        $this->assertSame('À planifier', $ligne->statut_libelle);
     }
 
     public function test_une_tache_close_sans_echeance_nencombre_pas_le_rapport(): void
