@@ -204,75 +204,90 @@ class extends Component {
             @php $slide = $this->courant(); @endphp
 
             @if (! $slide || $slide->type === 'titre')
-                {{-- Diapositive de titre : visuel et distinctions du dossier de comité,
-                     sous un voile bleu nuit qui garantit la lisibilité en projection. --}}
+                {{-- Diapositive de titre : le visuel de la maison à sa clarté d'origine.
+                     Le voile bleu nuit qui le recouvrait garantissait la lisibilité mais
+                     éteignait l'image ; un voile blanc dégradé la laisse vivre et porte
+                     le texte en bleu nuit, comme sur les dossiers de comité. --}}
                 <div
-                    class="relative flex min-h-[680px] flex-col items-center justify-center overflow-hidden bg-mpm-navy bg-cover bg-center p-12 text-center font-slide shadow-xl ring-1 ring-black/10"
+                    class="relative flex min-h-[680px] flex-col overflow-hidden bg-white bg-cover bg-center p-10 font-slide shadow-xl ring-1 ring-black/10 sm:p-12"
                     style="background-image: url('{{ asset('images/comite-background.jpg') }}')"
                 >
-                    <div class="absolute inset-0 bg-mpm-navy/90"></div>
+                    <div class="absolute inset-0 bg-gradient-to-b from-white/75 via-white/65 to-white/85"></div>
 
-                    <div class="relative flex flex-col items-center">
-                        <img src="{{ asset('images/mediasoft-lafayette.png') }}" alt="Mediasoft Lafayette" class="h-20 w-auto rounded bg-white p-2" />
+                    {{-- Filet bleu nuit à gauche : la signature des bandeaux de section. --}}
+                    <div class="absolute inset-y-0 start-0 w-1.5 bg-mpm-navy"></div>
 
-                        <p class="mt-8 text-sm uppercase tracking-[0.3em] text-white/70">
+                    <div class="relative flex flex-1 flex-col items-center justify-center text-center">
+                        <img
+                            src="{{ asset('images/mediasoft-lafayette.png') }}"
+                            alt="Mediasoft Lafayette"
+                            class="h-16 w-auto"
+                        />
+
+                        <p class="mt-7 text-xs uppercase tracking-[0.35em] text-mpm-navy/70">
                             Direction des Projets &amp; Organisation
                         </p>
-                        <h1 class="mt-4 text-5xl font-bold uppercase tracking-tight text-white">Comité Projets</h1>
-                        <p class="mt-3 text-xl text-white/90">
+                        <h1 class="mt-3 text-5xl font-bold uppercase tracking-tight text-mpm-navy">Comité Projets</h1>
+
+                        <p class="mt-3 inline-flex items-center gap-2 bg-mpm-navy px-4 py-1.5 text-sm font-medium tracking-wide text-white">
                             Du {{ $this->lundi()->format('d/m/Y') }} au {{ $this->lundi()->addDays(4)->format('d/m/Y') }}
                         </p>
 
-                        <div class="mt-9 grid grid-cols-3 gap-10">
-                            <div>
-                                <div class="text-4xl font-bold text-white">{{ $this->indicateurs()['projets'] }}</div>
-                                <div class="mt-1 text-xs uppercase tracking-wide text-white/60">Projets présentés</div>
-                            </div>
-                            <div>
-                                <div class="text-4xl font-bold text-red-300">{{ $this->indicateurs()['alerte'] }}</div>
-                                <div class="mt-1 text-xs uppercase tracking-wide text-white/60">En alerte</div>
-                            </div>
-                            <div>
-                                <div class="text-4xl font-bold text-green-300">{{ $this->indicateurs()['publies'] }}</div>
-                                <div class="mt-1 text-xs uppercase tracking-wide text-white/60">Rapports publiés</div>
-                            </div>
+                        {{-- Les trois chiffres du dossier, posés sur du blanc plein pour
+                             rester lisibles quelle que soit la zone de l'image. --}}
+                        <div class="mt-8 grid w-full max-w-2xl grid-cols-3 divide-x divide-mpm-rule border border-mpm-rule bg-white/85 shadow-sm">
+                            @foreach ([
+                                ['valeur' => $this->indicateurs()['projets'], 'libelle' => 'Projets présentés', 'ton' => 'text-mpm-navy'],
+                                ['valeur' => $this->indicateurs()['alerte'], 'libelle' => 'En alerte', 'ton' => 'text-mpm-red'],
+                                ['valeur' => $this->indicateurs()['publies'], 'libelle' => 'Rapports publiés', 'ton' => 'text-mpm-green'],
+                            ] as $chiffre)
+                                <div class="px-4 py-4">
+                                    <div class="text-4xl font-bold tabular-nums {{ $chiffre['ton'] }}">{{ $chiffre['valeur'] }}</div>
+                                    <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-500">{{ $chiffre['libelle'] }}</div>
+                                </div>
+                            @endforeach
                         </div>
 
                         @if ($this->manquants()->isNotEmpty())
-                            <flux:callout icon="exclamation-triangle" color="amber" class="mt-9 max-w-2xl">
-                                {{ $this->manquants()->count() }}
-                                {{ Str::plural('projet actif', $this->manquants()->count()) }}
-                                {{ $this->manquants()->count() > 1 ? 'n\'ont' : 'n\'a' }} pas de flash report cette semaine.
-                                {{ $this->manquants()->count() > 1 ? 'Ils passent' : 'Il passe' }} quand même à l'ordre du jour,
-                                {{ $this->manquants()->count() > 1 ? 'signalés' : 'signalé' }} comme donnée manquante.
-                            </flux:callout>
+                            {{-- w-full : sans lui, l'encart se réduit à la largeur d'un mot
+                                 dans une colonne centrée. --}}
+                            <div class="mt-6 flex w-full max-w-2xl items-start gap-3 border border-amber-300 bg-amber-50/95 px-4 py-3 text-start">
+                                <flux:icon name="exclamation-triangle" variant="mini" class="mt-0.5 shrink-0 text-amber-600" />
+                                <p class="text-sm leading-snug text-amber-900">
+                                    {{ $this->manquants()->count() }}
+                                    {{ Str::plural('projet actif', $this->manquants()->count()) }}
+                                    {{ $this->manquants()->count() > 1 ? "n'ont" : "n'a" }} pas de flash report cette semaine.
+                                    {{ $this->manquants()->count() > 1 ? 'Ils passent' : 'Il passe' }} quand même à l'ordre du jour,
+                                    {{ $this->manquants()->count() > 1 ? 'signalés' : 'signalé' }} comme donnée manquante.
+                                </p>
+                            </div>
                         @endif
 
                         @if ($this->diapositives()->where('type', 'rubrique')->isEmpty())
-                            <flux:callout icon="exclamation-triangle" color="amber" class="mt-9 max-w-lg">
+                            <div class="mt-6 w-full max-w-lg border border-amber-300 bg-amber-50/95 px-4 py-3 text-sm text-amber-900">
                                 Aucun projet actif ni flash report pour cette semaine.
-                            </flux:callout>
+                            </div>
                         @else
                             {{-- Sommaire des rubriques --}}
-                            <ol class="mt-9 grid w-full max-w-3xl gap-2 sm:grid-cols-2">
+                            <ol class="mt-8 grid w-full max-w-3xl gap-2 sm:grid-cols-2">
                                 @foreach ($this->diapositives()->where('type', 'rubrique') as $rang => $rubrique)
                                     <li>
                                         <button
                                             type="button"
                                             wire:click="allerA({{ $rang }})"
-                                            class="flex w-full items-center gap-3 border border-white/20 bg-white/10 px-4 py-2.5 text-start transition hover:bg-white/20"
+                                            class="flex w-full items-center gap-3 border border-mpm-rule bg-white/90 px-4 py-2.5 text-start shadow-sm transition hover:border-mpm-navy hover:bg-white"
                                         >
-                                            <span class="text-lg font-bold tabular-nums text-white/50">
+                                            <span class="text-lg font-bold tabular-nums text-mpm-navy/40">
                                                 {{ str_pad((string) $rubrique->categorie->rang(), 2, '0', STR_PAD_LEFT) }}
                                             </span>
                                             <span class="min-w-0 flex-1">
-                                                <span class="block truncate font-medium uppercase text-white">
+                                                <span class="block truncate font-semibold uppercase text-mpm-navy">
                                                     {{ $rubrique->categorie->label() }}
                                                 </span>
-                                                <span class="block text-xs text-white/60">
+                                                <span class="block text-xs text-zinc-500">
                                                     {{ $rubrique->projets->count() }} {{ Str::plural('projet', $rubrique->projets->count()) }}
                                                     @if ($rubrique->rapportsManquants->isNotEmpty())
-                                                        · <span class="text-amber-200">{{ $rubrique->rapportsManquants->count() }} sans rapport</span>
+                                                        · <span class="font-medium text-amber-700">{{ $rubrique->rapportsManquants->count() }} sans rapport</span>
                                                     @endif
                                                 </span>
                                             </span>
@@ -284,7 +299,9 @@ class extends Component {
                     </div>
 
                     {{-- Bandeau des distinctions, repris du dossier --}}
-                    <div class="relative mt-10 flex flex-wrap items-end justify-center gap-x-8 gap-y-4 border-t border-white/15 pt-5">
+                    {{-- Le bandeau des distinctions ferme la diapositive, bord à bord : il
+                         est le pied de page du dossier, pas un encart posé dessus. --}}
+                    <div class="relative -mx-10 -mb-10 mt-8 flex flex-wrap items-end justify-center gap-x-8 gap-y-4 border-t border-mpm-rule bg-white/85 px-10 pb-6 pt-5 sm:-mx-12 sm:-mb-12 sm:px-12">
                         @foreach ([
                             ['award-elite.png', 'World Business Leader Award', 'Mediasoft Lafayette, Elite Member'],
                             ['award-uemoa.png', 'World Business Award', '2008 · Meilleure entreprise d\'ingénierie UEMOA'],
@@ -293,8 +310,8 @@ class extends Component {
                             <div class="flex items-center gap-2.5 text-start">
                                 <img src="{{ asset('images/'.$fichier) }}" alt="" class="h-10 w-auto" />
                                 <div class="max-w-44">
-                                    <div class="text-[11px] font-bold uppercase tracking-wide text-white/85">{{ $titre }}</div>
-                                    <div class="text-[10px] leading-tight text-white/55">{{ $mention }}</div>
+                                    <div class="text-[11px] font-bold uppercase tracking-wide text-mpm-navy">{{ $titre }}</div>
+                                    <div class="text-[10px] leading-tight text-zinc-500">{{ $mention }}</div>
                                 </div>
                             </div>
                         @endforeach
