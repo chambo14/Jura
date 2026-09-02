@@ -1,19 +1,22 @@
 <?php
 
+use App\Enums\DeliverableStatus;
 use App\Enums\MemberRole;
+use App\Enums\ProgressStatus;
 use App\Enums\ProjectCategory;
 use App\Enums\ProjectStatus;
-use App\Enums\DeliverableStatus;
-use App\Enums\ProgressStatus;
 use App\Enums\ProjectType;
 use App\Models\Client;
-use App\Models\Project;
-use App\Models\User;
 use App\Models\Phase;
+use App\Models\Project;
+use App\Models\ProjectPhase;
+use App\Models\ProjectStep;
+use App\Models\User;
 use App\Models\WorkflowStep;
 use App\Services\AvancementService;
 use App\Services\ProjectCodeGenerator;
 use App\Services\ProjectProvisioner;
+use App\Services\ProjectSuppressionService;
 use App\Support\Audit\Audit;
 use App\Support\Referentiel\Perimetre;
 use Flux\Flux;
@@ -33,6 +36,9 @@ new class extends Component
 
     /** Le code a-t-il été saisi à la main plutôt qu'attribué ? */
     public bool $codePersonnalise = false;
+
+    /** Confirmation de suppression : le code du projet, saisi à la main. */
+    public string $codeDeSuppression = '';
 
     public string $nom = '';
 
@@ -335,7 +341,7 @@ new class extends Component
      * Phases décochées que le projet gardera : une phase entamée, ou dont un
      * livrable a déjà été produit, ne se retire pas d'un coup de case.
      *
-     * @return Collection<int, \App\Models\ProjectPhase>
+     * @return Collection<int, ProjectPhase>
      */
     #[Computed]
     public function phasesIrretirables(): Collection
@@ -372,7 +378,7 @@ new class extends Component
      * Une étape décochée sur laquelle du travail est consigné ne peut pas être
      * retirée : l'écran l'annonce avant l'enregistrement plutôt qu'après.
      *
-     * @return Collection<int, \App\Models\ProjectStep>
+     * @return Collection<int, ProjectStep>
      */
     #[Computed]
     public function etapesIrretirables(): Collection
@@ -441,6 +447,44 @@ new class extends Component
         }
 
         throw new RuntimeException('Aucun code projet disponible.');
+    }
+
+    /**
+     * Supprime le projet et tout ce qui en dépend.
+     *
+     * Le geste est sans retour : phases, étapes, tâches, livrables, jalons,
+     * flash reports, pièces jointes et journal disparaissent avec lui. Il
+     * n'existe que pour un projet créé par erreur — un projet arrivé à son
+     * terme se clôture, un projet arrêté s'abandonne, et l'un comme l'autre
+     * gardent leur histoire.
+     *
+     * D'où la confirmation par le code plutôt qu'un simple « êtes-vous
+     * sûr ? » : on ne supprime pas un projet en cliquant à côté.
+     */
+    public function supprimer(): void
+    {
+        if (! $this->project) {
+            return;
+        }
+
+        $this->authorize('delete', $this->project);
+
+        if (trim($this->codeDeSuppression) !== $this->project->code) {
+            $this->addError('codeDeSuppression', 'Saisissez le code du projet pour confirmer la suppression.');
+
+            return;
+        }
+
+        $nom = $this->project->nom;
+
+        Audit::pour(
+            'Suppression du projet',
+            fn () => app(ProjectSuppressionService::class)->supprimer($this->project),
+        );
+
+        Flux::toast(variant: 'success', text: "Projet « {$nom} » supprimé.");
+
+        $this->redirectRoute('projets.index', navigate: true);
     }
 
     public function enregistrer(): void
@@ -896,6 +940,40 @@ new class extends Component
                     wire:navigate
                 >Annuler</flux:button>
             </div>
+
+            @if ($project && auth()->user()->can('delete', $project))
+                {{-- Zone de suppression. Séparée du reste, en rouge, et fermée
+                     par la saisie du code : un projet arrivé à son terme se
+                     clôture, il ne se supprime pas. --}}
+                <section class="rounded-xl border border-red-200 bg-red-50/60 p-4 dark:border-red-900/60 dark:bg-red-950/20">
+                    <flux:heading size="lg" class="text-red-800 dark:text-red-200">Supprimer le projet</flux:heading>
+
+                    <p class="mt-2 text-sm leading-snug text-red-900/80 dark:text-red-200/80">
+                        Phases, étapes, tâches, livrables, jalons, flash reports, pièces jointes et
+                        journal disparaissent avec lui, sans retour possible.
+                        <strong>Un projet terminé se clôture, un projet arrêté s'abandonne</strong> —
+                        le statut, ci-dessus, les sort du portefeuille actif en gardant leur histoire.
+                        La suppression n'est là que pour un projet créé par erreur.
+                    </p>
+
+                    <flux:input
+                        wire:model="codeDeSuppression"
+                        label="Saisissez {{ $project->code }} pour confirmer"
+                        placeholder="{{ $project->code }}"
+                        class="mt-3"
+                    />
+
+                    <flux:button
+                        wire:click="supprimer"
+                        wire:confirm="Supprimer définitivement ce projet et tout ce qui en dépend ?"
+                        variant="danger"
+                        icon="trash"
+                        class="mt-3 w-full"
+                    >
+                        Supprimer définitivement
+                    </flux:button>
+                </section>
+            @endif
         </div>
     </form>
 </div>

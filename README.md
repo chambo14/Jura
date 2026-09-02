@@ -90,6 +90,25 @@ C'est ce que montrent les dossiers de comité : chaque projet dessine son parcou
 suit ses tests SBS et son autorisation BRB, PI BAGRI ses homologations BCEAO — aucun de ces
 jalons n'a de raison d'entrer dans un référentiel commun.
 
+### Retirer un projet du portefeuille
+
+Trois gestes, du plus doux au plus définitif :
+
+| Geste | Ce qu'il fait | Qui |
+|---|---|---|
+| Statut **Clôturé** | Le projet sort du portefeuille actif, son histoire reste consultable | Chef de projet |
+| Statut **Abandonné** | Idem, pour un projet arrêté en cours de route | Chef de projet |
+| **Supprimer le projet** | Efface le projet et tout ce qui en dépend, sans retour | Direction |
+
+La suppression n'existe que pour un projet **créé par erreur**. Elle emporte phases, étapes,
+tâches, livrables, jalons, flash reports, pièces jointes — fichiers compris, effacés du
+disque pour qu'ils ne s'accumulent pas en orphelins — et le journal du projet. Elle se
+trouve en bas de l'écran de modification, et demande la saisie du **code du projet** : un
+« êtes-vous sûr ? » se clique sans lire.
+
+Un projet arrivé à son terme se clôture. Il ne se supprime pas : c'est son histoire qui
+alimente les comparaisons d'une année sur l'autre.
+
 ### Suivi des délais
 
 - Les **8 phases MPM** (Opportunité → Clôture) sont instanciées sur chaque projet avec
