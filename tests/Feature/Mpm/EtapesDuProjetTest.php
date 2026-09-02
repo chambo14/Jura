@@ -106,6 +106,51 @@ class EtapesDuProjetTest extends TestCase
         $this->assertSame([$avant[1], $avant[0]], array_slice($apres, 0, 2));
     }
 
+    /**
+     * Glisser une étape sur une autre la place là où était celle-ci : monter
+     * la dernière au-dessus de l'avant-dernière les intervertit.
+     */
+    public function test_glisser_une_etape_sur_une_autre_la_place_a_son_rang(): void
+    {
+        $rangs = $this->project->steps()->orderBy('ordre')->pluck('id')->all();
+        $derniere = end($rangs);
+        $avantDerniere = $rangs[count($rangs) - 2];
+
+        $this->ecran()->call('deplacerVers', $derniere, $avantDerniere);
+
+        $apres = $this->project->steps()->orderBy('ordre')->pluck('id')->all();
+
+        $this->assertSame(
+            [$derniere, $avantDerniere],
+            array_slice($apres, -2),
+            "L'étape glissée prend le rang de sa cible, qui recule d'un cran.",
+        );
+    }
+
+    public function test_glisser_une_etape_vers_le_bas_la_descend(): void
+    {
+        $rangs = $this->project->steps()->orderBy('ordre')->pluck('id')->all();
+
+        $this->ecran()->call('deplacerVers', $rangs[0], $rangs[2]);
+
+        $apres = $this->project->steps()->orderBy('ordre')->pluck('id')->all();
+
+        $this->assertSame([$rangs[1], $rangs[0], $rangs[2]], array_slice($apres, 0, 3));
+    }
+
+    /**
+     * Un identifiant qui n'est pas du cycle — le navigateur transmet ce qu'il
+     * veut au dépôt — ne réordonne rien.
+     */
+    public function test_un_depot_sur_une_cible_inconnue_ne_change_rien(): void
+    {
+        $avant = $this->project->steps()->orderBy('ordre')->pluck('id')->all();
+
+        $this->ecran()->call('deplacerVers', $avant[0], 999_999);
+
+        $this->assertSame($avant, $this->project->steps()->orderBy('ordre')->pluck('id')->all());
+    }
+
     public function test_une_etape_du_referentiel_se_reprend_sans_ressaisie(): void
     {
         $etape = $this->project->steps()->orderBy('ordre')->firstOrFail();

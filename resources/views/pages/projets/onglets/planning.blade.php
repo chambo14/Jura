@@ -260,6 +260,50 @@ new class extends Component
         $this->enregistrerEtapes();
     }
 
+    /**
+     * Réordonne le cycle en glissant une étape sur une autre.
+     *
+     * L'étape déplacée vient se placer là où était celle qu'on a visée, comme
+     * une carte lâchée sur une autre au tableau des équipes. Les flèches font
+     * le même travail d'un cran : elles restent, pour le clavier et pour les
+     * écrans tactiles, où le glisser-déposer natif ne fonctionne pas.
+     */
+    public function deplacerVers(int $glissee, int $cible): void
+    {
+        $this->authorize('update', $this->project);
+
+        if ($glissee === $cible) {
+            return;
+        }
+
+        $depart = $this->rangDe($glissee);
+
+        if ($depart === null || $this->rangDe($cible) === null) {
+            return;
+        }
+
+        $ligne = $this->etapes[$depart];
+        array_splice($this->etapes, $depart, 1);
+
+        // Le rang de la cible a pu reculer d'un cran par le retrait.
+        $arrivee = $this->rangDe($cible);
+
+        array_splice($this->etapes, $arrivee ?? count($this->etapes), 0, [$ligne]);
+
+        $this->enregistrerEtapes();
+    }
+
+    private function rangDe(int $id): ?int
+    {
+        foreach ($this->etapes as $rang => $ligne) {
+            if ((int) $ligne['id'] === $id) {
+                return $rang;
+            }
+        }
+
+        return null;
+    }
+
     public function supprimerEtape(int $id): void
     {
         $this->authorize('update', $this->project);
@@ -558,7 +602,8 @@ new class extends Component
                 <flux:heading size="lg">Étapes du cycle</flux:heading>
                 <flux:subheading>
                     Le bandeau « Phase actuelle du projet ». Le référentiel MPM donne le point de
-                    départ ; la suite se règle projet par projet.
+                    départ ; la suite se règle projet par projet. Glissez une étape par sa
+                    poignée pour la déplacer.
                 </flux:subheading>
             </div>
 
@@ -573,7 +618,7 @@ new class extends Component
             <table class="w-full min-w-[52rem] text-sm">
                 <thead class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                     <tr class="border-b border-zinc-200 dark:border-zinc-700">
-                        <th class="w-10 py-2 pe-2 text-start font-medium">#</th>
+                        <th class="w-16 py-2 pe-2 text-start font-medium">#</th>
                         <th class="px-2 py-2 text-start font-medium">Libellé</th>
                         <th class="px-2 py-2 text-start font-medium">Annotation</th>
                         <th class="px-2 py-2 text-start font-medium">Statut</th>
@@ -582,8 +627,37 @@ new class extends Component
                 </thead>
                 <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
                     @forelse ($etapes as $rang => $ligne)
-                        <tr wire:key="etape-{{ $ligne['id'] }}">
-                            <td class="py-2 pe-2 font-mono text-xs text-zinc-400">{{ $rang + 1 }}</td>
+                        {{-- La ligne accueille le dépôt ; seule la poignée engage le
+                             glissement, faute de quoi on ne pourrait plus sélectionner
+                             le texte des champs. --}}
+                        {{-- La clé porte le rang autant que l'identifiant : les champs sont
+                             liés par index, et Livewire, qui déplace un bloc sans réécrire
+                             la valeur d'un champ, laisserait deux lignes échangées afficher
+                             les libellés l'une de l'autre. Changer la clé les fait
+                             reconstruire, avec les valeurs du serveur. --}}
+                        <tr
+                            wire:key="etape-{{ $ligne['id'] }}-{{ $rang }}"
+                            x-data="{ survol: false }"
+                            x-bind:class="survol ? 'bg-mpm-navy-tint' : ''"
+                            x-on:dragover.prevent="survol = true"
+                            x-on:dragleave="survol = false"
+                            x-on:drop.prevent="survol = false; $wire.deplacerVers(Number($event.dataTransfer.getData('text/plain')), {{ $ligne['id'] }})"
+                        >
+                            <td class="py-2 pe-2">
+                                <div class="flex items-center gap-1.5">
+                                    @if ($this->peutModifier())
+                                        <span
+                                            draggable="true"
+                                            x-on:dragstart="$event.dataTransfer.setData('text/plain', '{{ $ligne['id'] }}'); $event.dataTransfer.effectAllowed = 'move'"
+                                            class="cursor-grab text-zinc-300 transition hover:text-zinc-500 active:cursor-grabbing dark:text-zinc-600 dark:hover:text-zinc-400"
+                                            title="Glisser pour déplacer l'étape"
+                                        >
+                                            <flux:icon name="bars-3" variant="micro" />
+                                        </span>
+                                    @endif
+                                    <span class="font-mono text-xs text-zinc-400">{{ $rang + 1 }}</span>
+                                </div>
+                            </td>
                             <td class="px-2 py-2">
                                 <flux:input wire:model="etapes.{{ $rang }}.libelle" size="sm" :disabled="! $this->peutModifier()" />
                                 @if ($ligne['referentiel'] && $ligne['referentiel'] !== $ligne['libelle'])

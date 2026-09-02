@@ -83,7 +83,10 @@ MPM, selon le type de projet. Le référentiel donne le point de départ ; la su
 - **renommer** une étape reprise du référentiel, sans toucher au référentiel ni aux autres
   projets. Un libellé laissé identique n'est pas stocké : l'étape continue de suivre le
   référentiel si celui-ci évolue ;
-- **réordonner**, **retirer**, annoter (« 90 % », « bloqué BCEAO ») et fixer le statut ;
+- **réordonner** en glissant une étape par sa poignée sur celle dont on veut prendre le
+  rang — les flèches font le même travail d'un cran, pour le clavier et les écrans
+  tactiles ;
+- **retirer**, annoter (« 90 % », « bloqué BCEAO ») et fixer le statut ;
 - **reprendre** une étape du référentiel écartée à la création, sans la ressaisir.
 
 C'est ce que montrent les dossiers de comité : chaque projet dessine son parcours. e-ZiKash
