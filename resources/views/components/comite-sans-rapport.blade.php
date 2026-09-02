@@ -66,7 +66,7 @@
                         'Date de début' => $project->date_debut?->format('d/m/Y'),
                         'Fin prévue' => $project->dateFinEffective()?->format('d/m/Y'),
                         'Phase MPM' => $project->phase?->nom,
-                        'Étape courante' => $project->workflowStep?->libelle,
+                        'Étape courante' => $project->etapeCourante(),
                     ] as $intitule => $valeur)
                         <div class="flex gap-2">
                             <dt class="shrink-0 text-neutral-500">{{ $intitule }} :</dt>

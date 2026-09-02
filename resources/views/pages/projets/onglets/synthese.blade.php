@@ -144,7 +144,7 @@ new class extends Component {
                             @if ($etape->statut === ProgressStatus::Termine)
                                 <flux:icon name="check" variant="micro" />
                             @endif
-                            <span class="font-medium">{{ $etape->workflowStep?->libelle }}</span>
+                            <span class="font-medium">{{ $etape->intitule() }}</span>
                             @if ($etape->annotation)
                                 <span class="opacity-75">{{ $etape->annotation }}</span>
                             @endif

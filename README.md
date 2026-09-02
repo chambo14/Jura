@@ -71,6 +71,25 @@ annotée reste ; une phase entamée, avancée ou commentée reste ; une phase do
 a déjà été produit reste, car la retirer emporterait la pièce elle-même. L'écran signale
 ces cas sous la case concernée avant l'enregistrement, et les confirme après.
 
+### Étapes du cycle
+
+Le bandeau **Phase actuelle du projet** est instancié à la création à partir du référentiel
+MPM, selon le type de projet. Le référentiel donne le point de départ ; la suite se règle
+**projet par projet**, dans l'onglet *Planning & délais*, section *Étapes du cycle* :
+
+- **ajouter une étape propre au projet** — elle n'existe que pour lui et ne renvoie à
+  aucune étape du référentiel (« Conclusion SBS V2 », « Autorisation BRB Wallet »,
+  « Homologation technique BCEAO ») ;
+- **renommer** une étape reprise du référentiel, sans toucher au référentiel ni aux autres
+  projets. Un libellé laissé identique n'est pas stocké : l'étape continue de suivre le
+  référentiel si celui-ci évolue ;
+- **réordonner**, **retirer**, annoter (« 90 % », « bloqué BCEAO ») et fixer le statut ;
+- **reprendre** une étape du référentiel écartée à la création, sans la ressaisir.
+
+C'est ce que montrent les dossiers de comité : chaque projet dessine son parcours. e-ZiKash
+suit ses tests SBS et son autorisation BRB, PI BAGRI ses homologations BCEAO — aucun de ces
+jalons n'a de raison d'entrer dans un référentiel commun.
+
 ### Suivi des délais
 
 - Les **8 phases MPM** (Opportunité → Clôture) sont instanciées sur chaque projet avec

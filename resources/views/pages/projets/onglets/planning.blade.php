@@ -4,17 +4,28 @@ use App\Enums\GovernanceBody;
 use App\Enums\ProgressStatus;
 use App\Models\Milestone;
 use App\Models\Project;
+use App\Models\ProjectStep;
+use App\Models\WorkflowStep;
 use App\Services\GanttBuilder;
 use App\Support\Gantt\GanttChart;
 use Flux\Flux;
+use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
-new class extends Component {
+new class extends Component
+{
     public Project $project;
 
     /** @var array<int, array<string, mixed>> */
     public array $phases = [];
+
+    /** @var array<int, array<string, mixed>> */
+    public array $etapes = [];
+
+    public string $nouvelleEtape = '';
+
+    public string $etapeDuReferentiel = '';
 
     public ?int $jalonEnEdition = null;
 
@@ -41,6 +52,7 @@ new class extends Component {
 
         $this->project = $project;
         $this->chargerPhases();
+        $this->chargerEtapes();
         $this->chargerDelais();
     }
 
@@ -103,6 +115,162 @@ new class extends Component {
                 'statut' => $p->statut->value,
             ])
             ->all();
+    }
+
+    /**
+     * Le bandeau « PHASE ACTUELLE DU PROJET », tel qu'il est sur ce projet.
+     *
+     * Les dossiers de comité montrent que chaque projet dessine son parcours :
+     * e-ZiKash suit ses tests SBS et son autorisation BRB, PI BAGRI ses
+     * homologations BCEAO. Le référentiel donne le point de départ ; la suite
+     * se règle projet par projet.
+     */
+    private function chargerEtapes(): void
+    {
+        $this->etapes = $this->project->steps()->with('workflowStep')->get()
+            ->sortBy('ordre')
+            ->values()
+            ->map(fn (ProjectStep $e) => [
+                'id' => $e->id,
+                'libelle' => $e->intitule(),
+                'referentiel' => $e->workflowStep?->libelle,
+                'statut' => $e->statut->value,
+                'annotation' => $e->annotation ?? '',
+            ])
+            ->all();
+    }
+
+    /**
+     * Les étapes du référentiel que ce projet n'a pas encore reprises, pour
+     * les rajouter sans les ressaisir.
+     *
+     * @return Collection<int, WorkflowStep>
+     */
+    #[Computed]
+    public function etapesDisponibles(): Collection
+    {
+        return WorkflowStep::query()
+            ->where('type_projet', $this->project->type_projet->value)
+            ->whereNotIn('id', $this->project->steps()->whereNotNull('workflow_step_id')->pluck('workflow_step_id'))
+            ->orderBy('ordre')
+            ->get();
+    }
+
+    public function enregistrerEtapes(): void
+    {
+        $this->authorize('update', $this->project);
+
+        $this->validate([
+            'etapes.*.libelle' => ['required', 'string', 'max:255'],
+            'etapes.*.statut' => ['required', 'string'],
+            'etapes.*.annotation' => ['nullable', 'string', 'max:120'],
+        ], attributes: ['etapes.*.libelle' => 'libellé de l\'étape']);
+
+        foreach ($this->etapes as $rang => $ligne) {
+            $etape = $this->project->steps()->with('workflowStep')->find($ligne['id']);
+
+            if (! $etape) {
+                continue;
+            }
+
+            // Le libellé n'est stocké que s'il s'écarte du référentiel : une
+            // étape reprise telle quelle continue de suivre le référentiel si
+            // celui-ci évolue.
+            $propre = $ligne['libelle'] !== $etape->workflowStep?->libelle
+                ? $ligne['libelle']
+                : null;
+
+            $etape->update([
+                'libelle' => $propre,
+                'ordre' => $rang + 1,
+                'statut' => $ligne['statut'],
+                'annotation' => $ligne['annotation'] ?: null,
+            ]);
+        }
+
+        $this->project->refresh()->load('steps.workflowStep');
+        $this->chargerEtapes();
+
+        Flux::toast(variant: 'success', text: 'Étapes du cycle enregistrées.');
+    }
+
+    /**
+     * Une étape qui n'existe que pour ce projet : sans référence au
+     * référentiel, avec son libellé à elle.
+     */
+    public function ajouterEtape(): void
+    {
+        $this->authorize('update', $this->project);
+
+        $this->validate(
+            ['nouvelleEtape' => ['required', 'string', 'max:255']],
+            attributes: ['nouvelleEtape' => 'libellé de l\'étape'],
+        );
+
+        $this->project->steps()->create([
+            'workflow_step_id' => null,
+            'libelle' => $this->nouvelleEtape,
+            'ordre' => ((int) $this->project->steps()->max('ordre')) + 1,
+            'statut' => ProgressStatus::NonDemarre,
+        ]);
+
+        $this->reset('nouvelleEtape');
+        $this->project->refresh()->load('steps.workflowStep');
+        $this->chargerEtapes();
+        unset($this->etapesDisponibles);
+
+        Flux::toast(variant: 'success', text: 'Étape ajoutée au cycle.');
+    }
+
+    public function reprendreDuReferentiel(): void
+    {
+        $this->authorize('update', $this->project);
+
+        $this->validate(
+            ['etapeDuReferentiel' => ['required', 'exists:workflow_steps,id']],
+            attributes: ['etapeDuReferentiel' => 'étape du référentiel'],
+        );
+
+        $this->project->steps()->create([
+            'workflow_step_id' => (int) $this->etapeDuReferentiel,
+            'ordre' => ((int) $this->project->steps()->max('ordre')) + 1,
+            'statut' => ProgressStatus::NonDemarre,
+        ]);
+
+        $this->reset('etapeDuReferentiel');
+        $this->project->refresh()->load('steps.workflowStep');
+        $this->chargerEtapes();
+        unset($this->etapesDisponibles);
+
+        Flux::toast(variant: 'success', text: 'Étape reprise du référentiel MPM.');
+    }
+
+    public function deplacerEtape(int $rang, int $sens): void
+    {
+        $this->authorize('update', $this->project);
+
+        $cible = $rang + $sens;
+
+        if (! isset($this->etapes[$rang], $this->etapes[$cible])) {
+            return;
+        }
+
+        [$this->etapes[$rang], $this->etapes[$cible]] = [$this->etapes[$cible], $this->etapes[$rang]];
+
+        $this->enregistrerEtapes();
+    }
+
+    public function supprimerEtape(int $id): void
+    {
+        $this->authorize('update', $this->project);
+
+        $this->project->steps()->whereKey($id)->get()->each->delete();
+
+        $this->project->refresh()->load('steps.workflowStep');
+        $this->chargerEtapes();
+        unset($this->etapesDisponibles);
+
+        Flux::toast(variant: 'success', text: 'Étape retirée du cycle.');
     }
 
     #[Computed]
@@ -226,10 +394,10 @@ new class extends Component {
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, Milestone>
+     * @return Collection<int, Milestone>
      */
     #[Computed]
-    public function jalons(): \Illuminate\Support\Collection
+    public function jalons(): Collection
     {
         return $this->project->milestones()->orderBy('date_prevue')->get();
     }
@@ -381,6 +549,133 @@ new class extends Component {
                 </tbody>
             </table>
         </div>
+    </section>
+
+    {{-- Étapes du cycle : le bandeau « PHASE ACTUELLE DU PROJET » --}}
+    <section class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <flux:heading size="lg">Étapes du cycle</flux:heading>
+                <flux:subheading>
+                    Le bandeau « Phase actuelle du projet ». Le référentiel MPM donne le point de
+                    départ ; la suite se règle projet par projet.
+                </flux:subheading>
+            </div>
+
+            @if ($this->peutModifier())
+                <flux:button wire:click="enregistrerEtapes" variant="primary" size="sm" icon="check">
+                    Enregistrer les étapes
+                </flux:button>
+            @endif
+        </div>
+
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full min-w-[52rem] text-sm">
+                <thead class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <tr class="border-b border-zinc-200 dark:border-zinc-700">
+                        <th class="w-10 py-2 pe-2 text-start font-medium">#</th>
+                        <th class="px-2 py-2 text-start font-medium">Libellé</th>
+                        <th class="px-2 py-2 text-start font-medium">Annotation</th>
+                        <th class="px-2 py-2 text-start font-medium">Statut</th>
+                        <th class="ps-2 py-2"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    @forelse ($etapes as $rang => $ligne)
+                        <tr wire:key="etape-{{ $ligne['id'] }}">
+                            <td class="py-2 pe-2 font-mono text-xs text-zinc-400">{{ $rang + 1 }}</td>
+                            <td class="px-2 py-2">
+                                <flux:input wire:model="etapes.{{ $rang }}.libelle" size="sm" :disabled="! $this->peutModifier()" />
+                                @if ($ligne['referentiel'] && $ligne['referentiel'] !== $ligne['libelle'])
+                                    <div class="mt-0.5 text-xs text-zinc-400">Référentiel : {{ $ligne['referentiel'] }}</div>
+                                @elseif (! $ligne['referentiel'])
+                                    <div class="mt-0.5 text-xs text-zinc-400">Propre à ce projet</div>
+                                @endif
+                            </td>
+                            <td class="px-2 py-2">
+                                <flux:input
+                                    wire:model="etapes.{{ $rang }}.annotation"
+                                    size="sm"
+                                    placeholder="90 %, bloqué BCEAO…"
+                                    :disabled="! $this->peutModifier()"
+                                />
+                            </td>
+                            <td class="px-2 py-2">
+                                <flux:select wire:model="etapes.{{ $rang }}.statut" size="sm" :disabled="! $this->peutModifier()">
+                                    @foreach (ProgressStatus::cases() as $cas)
+                                        <flux:select.option :value="$cas->value">{{ $cas->label() }}</flux:select.option>
+                                    @endforeach
+                                </flux:select>
+                            </td>
+                            <td class="ps-2 py-2 text-end whitespace-nowrap">
+                                @if ($this->peutModifier())
+                                    <flux:button
+                                        wire:click="deplacerEtape({{ $rang }}, -1)"
+                                        icon="chevron-up"
+                                        variant="ghost"
+                                        size="xs"
+                                        inset
+                                        :disabled="$rang === 0"
+                                        title="Monter"
+                                    />
+                                    <flux:button
+                                        wire:click="deplacerEtape({{ $rang }}, 1)"
+                                        icon="chevron-down"
+                                        variant="ghost"
+                                        size="xs"
+                                        inset
+                                        :disabled="$rang === count($etapes) - 1"
+                                        title="Descendre"
+                                    />
+                                    <flux:button
+                                        wire:click="supprimerEtape({{ $ligne['id'] }})"
+                                        wire:confirm="Retirer cette étape du cycle de ce projet ?"
+                                        icon="trash"
+                                        variant="ghost"
+                                        size="xs"
+                                        inset
+                                    />
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="py-8 text-center text-zinc-500 dark:text-zinc-400">
+                                Aucune étape sur ce projet.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        @if ($this->peutModifier())
+            <div class="mt-4 flex flex-wrap items-end gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                <flux:input
+                    wire:model="nouvelleEtape"
+                    label="Nouvelle étape"
+                    placeholder="Conclusion SBS V2, Autorisation BRB Wallet…"
+                    class="w-72"
+                />
+                <flux:button wire:click="ajouterEtape" variant="filled" size="sm" icon="plus" class="mb-0.5">
+                    Ajouter
+                </flux:button>
+
+                @if ($this->etapesDisponibles()->isNotEmpty())
+                    <flux:separator vertical class="mx-1 mb-2 h-8" />
+
+                    <flux:select wire:model="etapeDuReferentiel" label="Reprendre du référentiel" class="w-72">
+                        <flux:select.option value="">Choisir une étape…</flux:select.option>
+                        @foreach ($this->etapesDisponibles() as $etape)
+                            <flux:select.option :value="$etape->id">{{ $etape->libelle }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:button wire:click="reprendreDuReferentiel" variant="ghost" size="sm" icon="arrow-down-tray" class="mb-0.5">
+                        Reprendre
+                    </flux:button>
+                @endif
+            </div>
+        @endif
     </section>
 
     {{-- Jalons --}}

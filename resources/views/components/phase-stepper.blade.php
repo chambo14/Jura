@@ -22,7 +22,7 @@
 
         <li
             class="flex items-center gap-1.5 rounded-md border px-2.5 py-1 {{ $classes }} {{ $compact ? 'text-[11px]' : 'text-xs' }}"
-            title="{{ $step->workflowStep?->libelle }} — {{ $statut->label() }}"
+            title="{{ $step->intitule() }} — {{ $statut->label() }}"
         >
             @if ($statut === ProgressStatus::Termine)
                 <flux:icon name="check" variant="micro" class="shrink-0" />
@@ -30,7 +30,7 @@
                 <flux:icon name="exclamation-triangle" variant="micro" class="shrink-0" />
             @endif
 
-            <span class="font-medium">{{ $step->workflowStep?->libelle }}</span>
+            <span class="font-medium">{{ $step->intitule() }}</span>
 
             @if ($step->annotation)
                 <span class="opacity-75">{{ $step->annotation }}</span>

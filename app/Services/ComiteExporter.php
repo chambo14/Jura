@@ -227,7 +227,7 @@ class ComiteExporter
                 'Date de début : '.($projet->date_debut?->format('d/m/Y') ?? '—'),
                 'Fin prévue : '.($projet->dateFinEffective()?->format('d/m/Y') ?? '—'),
                 $projet->phase ? 'Phase MPM : '.$projet->phase->nom : null,
-                $projet->workflowStep ? 'Étape courante : '.$projet->workflowStep->libelle : null,
+                $projet->etapeCourante() ? 'Étape courante : '.$projet->etapeCourante() : null,
                 'Avancement déclaré : '.number_format($projet->avancement_pct, 2, ',', ' ').' % (non confirmé cette semaine)',
             ]),
             hauteur: 2400000,

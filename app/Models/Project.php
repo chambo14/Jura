@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Concerns\EstAudite;
 use App\Concerns\HasAttachments;
+use App\Enums\ProgressStatus;
 use App\Enums\ProjectCategory;
 use App\Enums\ProjectStatus;
 use App\Enums\ProjectType;
@@ -194,6 +195,21 @@ class Project extends Model
     public function flashReports(): HasMany
     {
         return $this->hasMany(FlashReport::class)->orderByDesc('semaine_du');
+    }
+
+    /**
+     * Étape courante du cycle, telle qu'elle s'affiche.
+     *
+     * L'étape en cours du bandeau fait foi : elle peut être propre au projet,
+     * auquel cas elle ne renvoie à aucune étape du référentiel. On retombe sur
+     * le référentiel quand le bandeau n'a pas encore été positionné.
+     */
+    public function etapeCourante(): ?string
+    {
+        $enCours = $this->steps
+            ->firstWhere('statut', ProgressStatus::EnCours);
+
+        return $enCours?->intitule() ?? $this->workflowStep?->libelle;
     }
 
     /**

@@ -146,14 +146,14 @@
 
                     <li
                         class="flex items-start gap-1 border px-1.5 py-1 leading-tight {{ $classes }} {{ $t['etape'] }}"
-                        title="{{ $etape->workflowStep?->libelle }} — {{ $etape->statut->label() }}"
+                        title="{{ $etape->intitule() }} — {{ $etape->statut->label() }}"
                     >
                         @if ($etape->statut === ProgressStatus::Termine)
                             <span aria-hidden="true" class="shrink-0 font-bold">&check;</span>
                         @endif
 
                         <span class="min-w-0">
-                            {{ $etape->workflowStep?->libelle }}
+                            {{ $etape->intitule() }}
                             @if ($etape->annotation)
                                 <span class="opacity-80">— {{ $etape->annotation }}</span>
                             @endif
