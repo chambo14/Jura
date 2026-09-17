@@ -73,6 +73,19 @@ ces cas sous la case concernée avant l'enregistrement, et les confirme après.
 
 ### Étapes du cycle
 
+L'onglet *Planning & délais* décrit le parcours du projet à **deux échelles**, et l'ordre des
+deux blocs suit cette imbrication :
+
+1. **Phases MPM** — les 8 phases de la méthodologie. Elles portent les dates prévues et
+   réelles : ce sont elles qui dessinent le diagramme de Gantt et qui mesurent les retards.
+2. **Étapes du cycle** — le découpage fin *à l'intérieur* de ces phases, celui que le comité
+   projette sous « Phase actuelle du projet ». Chaque étape appartient à une phase, et la
+   colonne *Phase* du tableau le montre ; réciproquement, chaque phase annonce le nombre
+   d'étapes qu'elle abrite.
+
+Une phase de Réalisation peut ainsi abriter *Développement*, *Tests unitaires*,
+*Mise en place de l'infrastructure de tests* et *Déploiement en environnement de tests*.
+
 Le bandeau **Phase actuelle du projet** est instancié à la création à partir du référentiel
 MPM, selon le type de projet. Le référentiel donne le point de départ ; la suite se règle
 **projet par projet**, dans l'onglet *Planning & délais*, section *Étapes du cycle* :

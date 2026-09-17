@@ -103,10 +103,18 @@ new class extends Component
 
     private function chargerPhases(): void
     {
+        // Combien d'étapes du cycle chaque phase abrite : c'est ce qui rend
+        // visible que les deux tableaux décrivent le même parcours à deux
+        // échelles, et non deux plannings concurrents.
+        $etapesParPhase = $this->project->steps()->with('workflowStep')->get()
+            ->groupBy(fn (ProjectStep $e) => $e->workflowStep?->phase_id)
+            ->map->count();
+
         $this->phases = $this->project->phases()->with('phase')->get()
             ->map(fn ($p) => [
                 'id' => $p->id,
                 'nom' => $p->phase->nom,
+                'etapes' => (int) ($etapesParPhase[$p->phase_id] ?? 0),
                 'debut' => $p->date_debut_prevue?->format('Y-m-d') ?? '',
                 'fin' => $p->date_fin_prevue?->format('Y-m-d') ?? '',
                 'debut_reel' => $p->date_debut_reelle?->format('Y-m-d') ?? '',
@@ -127,12 +135,13 @@ new class extends Component
      */
     private function chargerEtapes(): void
     {
-        $this->etapes = $this->project->steps()->with('workflowStep')->get()
+        $this->etapes = $this->project->steps()->with('workflowStep.phase')->get()
             ->sortBy('ordre')
             ->values()
             ->map(fn (ProjectStep $e) => [
                 'id' => $e->id,
                 'libelle' => $e->intitule(),
+                'phase' => $e->workflowStep?->phase?->nom,
                 'referentiel' => $e->workflowStep?->libelle,
                 'statut' => $e->statut->value,
                 'annotation' => $e->annotation ?? '',
@@ -537,9 +546,12 @@ new class extends Component
     {{-- Phases MPM --}}
     <section class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <flux:heading size="lg">Phases MPM</flux:heading>
-                <flux:subheading>Dates prévues et réelles des 8 phases de la méthodologie</flux:subheading>
+            <div class="max-w-3xl">
+                <flux:heading size="lg">1 · Phases MPM — le calendrier</flux:heading>
+                <flux:subheading>
+                    Les 8 phases de la méthodologie, du début à la clôture. Ce sont leurs dates
+                    qui dessinent le diagramme ci-dessus et qui mesurent les retards.
+                </flux:subheading>
             </div>
 
             @if ($this->peutModifier())
@@ -565,7 +577,12 @@ new class extends Component
                 <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
                     @foreach ($phases as $index => $ligne)
                         <tr wire:key="phase-{{ $ligne['id'] }}">
-                            <td class="py-2 pe-3 font-medium">{{ $ligne['nom'] }}</td>
+                            <td class="py-2 pe-3">
+                                <div class="font-medium">{{ $ligne['nom'] }}</div>
+                                <div class="text-xs text-zinc-400">
+                                    {{ $ligne['etapes'] }} étape{{ $ligne['etapes'] > 1 ? 's' : '' }} du cycle
+                                </div>
+                            </td>
                             <td class="px-2 py-2">
                                 <flux:input wire:model="phases.{{ $index }}.debut" type="date" size="sm" :disabled="! $this->peutModifier()" />
                             </td>
@@ -598,12 +615,13 @@ new class extends Component
     {{-- Étapes du cycle : le bandeau « PHASE ACTUELLE DU PROJET » --}}
     <section class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <flux:heading size="lg">Étapes du cycle</flux:heading>
+            <div class="max-w-3xl">
+                <flux:heading size="lg">2 · Étapes du cycle — le détail présenté au comité</flux:heading>
                 <flux:subheading>
-                    Le bandeau « Phase actuelle du projet ». Le référentiel MPM donne le point de
-                    départ ; la suite se règle projet par projet. Glissez une étape par sa
-                    poignée pour la déplacer.
+                    Le découpage fin à l'intérieur des phases : c'est le bandeau
+                    « Phase actuelle du projet » du flash report. Chaque étape appartient à une
+                    phase ci-dessus ; le référentiel MPM donne le point de départ, la suite se
+                    règle projet par projet. Glissez une étape par sa poignée pour la déplacer.
                 </flux:subheading>
             </div>
 
@@ -615,11 +633,12 @@ new class extends Component
         </div>
 
         <div class="mt-4 overflow-x-auto">
-            <table class="w-full min-w-[52rem] text-sm">
+            <table class="w-full min-w-[60rem] text-sm">
                 <thead class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                     <tr class="border-b border-zinc-200 dark:border-zinc-700">
                         <th class="w-16 py-2 pe-2 text-start font-medium">#</th>
                         <th class="px-2 py-2 text-start font-medium">Libellé</th>
+                        <th class="px-2 py-2 text-start font-medium">Phase</th>
                         <th class="px-2 py-2 text-start font-medium">Annotation</th>
                         <th class="px-2 py-2 text-start font-medium">Statut</th>
                         <th class="ps-2 py-2"></th>
@@ -664,6 +683,13 @@ new class extends Component
                                     <div class="mt-0.5 text-xs text-zinc-400">Référentiel : {{ $ligne['referentiel'] }}</div>
                                 @elseif (! $ligne['referentiel'])
                                     <div class="mt-0.5 text-xs text-zinc-400">Propre à ce projet</div>
+                                @endif
+                            </td>
+                            <td class="px-2 py-2 whitespace-nowrap">
+                                @if ($ligne['phase'])
+                                    <flux:badge color="zinc" size="sm">{{ $ligne['phase'] }}</flux:badge>
+                                @else
+                                    <span class="text-xs text-zinc-400">Hors phase</span>
                                 @endif
                             </td>
                             <td class="px-2 py-2">
@@ -714,7 +740,7 @@ new class extends Component
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="py-8 text-center text-zinc-500 dark:text-zinc-400">
+                            <td colspan="6" class="py-8 text-center text-zinc-500 dark:text-zinc-400">
                                 Aucune étape sur ce projet.
                             </td>
                         </tr>
